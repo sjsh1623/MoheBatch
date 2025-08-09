@@ -23,16 +23,38 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-validation")
+    implementation("org.springframework.boot:spring-boot-starter-security")
+    implementation("org.springframework.boot:spring-boot-starter-mail")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
+    
+    // HikariCP (already included in spring-boot-starter-data-jpa)
+    implementation("com.zaxxer:HikariCP")
+    
+    // JWT
+    implementation("io.jsonwebtoken:jjwt-api:0.12.3")
+    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.3")
+    runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.3")
     
     // PostgreSQL driver
     runtimeOnly("org.postgresql:postgresql")
     
+    // BCrypt for password encoding
+    implementation("org.springframework.security:spring-security-crypto")
+    
+    // Redis for token storage (optional)
+    implementation("org.springframework.boot:spring-boot-starter-data-redis")
+    
+    // Swagger/OpenAPI documentation
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.1.0")
+    
     // Test dependencies
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.springframework.security:spring-security-test")
+    testImplementation("com.h2database:h2")
     testImplementation("org.testcontainers:junit-jupiter")
     testImplementation("org.testcontainers:postgresql")
+    testImplementation("org.testcontainers:redis")
 }
 
 tasks.withType<KotlinCompile> {
