@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: mohe-postgres
+    environment:
+      POSTGRES_DB: mohe_db
+      POSTGRES_USER: mohe_user
+      POSTGRES_PASSWORD: mohe_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - mohe-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mohe_user -d mohe_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  app:
+    build: .
+    container_name: mohe-spring-app
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    networks:
+      - mohe-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  mohe-network:
+    driver: bridge
