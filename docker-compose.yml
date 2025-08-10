@@ -1,0 +1,208 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database (shared with MoheSpring)
+  postgres:
+    image: postgres:15-alpine
+    container_name: mohe-postgres-shared
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mohe_db}
+      POSTGRES_USER: ${POSTGRES_USER:-mohe_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mohe_password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - mohe-batch-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mohe_user} -d ${POSTGRES_DB:-mohe_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Mock external API for testing
+  mock-api:
+    image: wiremock/wiremock:2.35.0
+    container_name: mohe-batch-mock-api
+    command: ["--global-response-templating", "--port", "8080"]
+    ports:
+      - "${MOCK_API_PORT:-3000}:8080"
+    volumes:
+      - ./docker/wiremock/mappings:/home/wiremock/mappings
+      - ./docker/wiremock/__files:/home/wiremock/__files
+    networks:
+      - mohe-batch-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/__admin/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # MoheBatch web server
+  mohebatch-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mohe-batch-web
+    environment:
+      # Database configuration (shared with MoheSpring)
+      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-mohe_db}
+      DATABASE_USERNAME: ${POSTGRES_USER:-mohe_user}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-mohe_password}
+      
+      # External API configuration
+      EXTERNAL_API_BASE_URL: http://mock-api:8080
+      EXTERNAL_API_PAGE_SIZE: ${API_PAGE_SIZE:-100}
+      EXTERNAL_API_MAX_PAGES: ${API_MAX_PAGES:-10}
+      EXTERNAL_API_TIMEOUT: ${API_TIMEOUT:-30}
+      
+      # Batch configuration
+      BATCH_CHUNK_SIZE: ${BATCH_CHUNK_SIZE:-500}
+      BATCH_SKIP_LIMIT: ${BATCH_SKIP_LIMIT:-100}
+      BATCH_AUTO_START: false  # Web service doesn't auto-start batch jobs
+      
+      # JVM configuration for web service
+      JAVA_OPTS: >
+        -XX:+UseContainerSupport
+        -XX:MaxRAMPercentage=70.0
+        -XX:+UseG1GC
+        -XX:+UseStringDeduplication
+        -Xms256m
+        -Xmx512m
+        
+      # Spring profile
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      ENVIRONMENT: ${ENVIRONMENT:-docker}
+      
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+      - "${WEB_MANAGEMENT_PORT:-8081}:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mock-api:
+        condition: service_healthy
+    networks:
+      - mohe-batch-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # MoheBatch processor
+  mohebatch-processor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mohe-batch-processor
+    environment:
+      # Database configuration (shared with MoheSpring)
+      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-mohe_db}
+      DATABASE_USERNAME: ${POSTGRES_USER:-mohe_user}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-mohe_password}
+      
+      # External API configuration
+      EXTERNAL_API_BASE_URL: http://mock-api:8080
+      EXTERNAL_API_PAGE_SIZE: ${API_PAGE_SIZE:-100}
+      EXTERNAL_API_MAX_PAGES: ${API_MAX_PAGES:-10}
+      EXTERNAL_API_TIMEOUT: ${API_TIMEOUT:-30}
+      
+      # Batch configuration
+      BATCH_CHUNK_SIZE: ${BATCH_CHUNK_SIZE:-500}
+      BATCH_SKIP_LIMIT: ${BATCH_SKIP_LIMIT:-100}
+      BATCH_AUTO_START: ${BATCH_AUTO_START:-false}  # Can enable for auto-start
+      
+      # Scheduling configuration
+      APP_BATCH_SCHEDULING_ENABLED: ${BATCH_SCHEDULING_ENABLED:-true}
+      APP_BATCH_SCHEDULING_CRON: ${BATCH_CRON:-0 */30 * * * ?}  # Every 30 minutes by default
+      
+      # JVM configuration for batch processing
+      JAVA_OPTS: >
+        -XX:+UseContainerSupport
+        -XX:MaxRAMPercentage=75.0
+        -XX:+UseG1GC
+        -XX:+UseStringDeduplication
+        -Xms512m
+        -Xmx1024m
+        
+      # Spring profile
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker},batch
+      ENVIRONMENT: ${ENVIRONMENT:-docker}
+      
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "${BATCH_PORT:-8082}:8080"
+      - "${BATCH_MANAGEMENT_PORT:-8083}:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mock-api:
+        condition: service_healthy
+    networks:
+      - mohe-batch-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Prometheus for metrics (optional)
+  prometheus:
+    image: prom/prometheus:v2.40.7
+    container_name: mohe-batch-prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - mohe-batch-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
+
+  # Grafana for visualization (optional)
+  grafana:
+    image: grafana/grafana:9.3.2
+    container_name: mohe-batch-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards
+    networks:
+      - mohe-batch-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
+
+volumes:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  mohe-batch-network:
+    driver: bridge

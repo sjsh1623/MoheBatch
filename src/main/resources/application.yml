@@ -1,0 +1,186 @@
+server:
+  port: 8080
+  shutdown: graceful
+
+spring:
+  application:
+    name: MoheBatch
+  
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/mohe_db}
+    username: ${DATABASE_USERNAME:mohe_user}
+    password: ${DATABASE_PASSWORD:mohe_password}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-timeout: ${DB_CONNECTION_TIMEOUT:20000}
+      maximum-pool-size: ${DB_MAX_POOL_SIZE:20}
+      minimum-idle: ${DB_MIN_IDLE:5}
+      idle-timeout: ${DB_IDLE_TIMEOUT:300000}
+      max-lifetime: ${DB_MAX_LIFETIME:1200000}
+      leak-detection-threshold: ${DB_LEAK_DETECTION_THRESHOLD:60000}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: ${JPA_SHOW_SQL:false}
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        jdbc:
+          batch_size: 20
+          order_inserts: true
+          order_updates: true
+        connection:
+          provider_disables_autocommit: true
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    validate-on-migrate: true
+
+  batch:
+    job:
+      enabled: ${BATCH_AUTO_START:false}  # Can be enabled via environment variable
+    initialize-schema: never  # We handle schema via Flyway
+    
+  # Enable scheduling for batch jobs
+  scheduling:
+    enabled: true
+
+# Application-specific configuration
+app:
+  external:
+    api:
+      base-url: ${EXTERNAL_API_BASE_URL:http://localhost:3000}
+      page-size: ${EXTERNAL_API_PAGE_SIZE:100}
+      max-pages: ${EXTERNAL_API_MAX_PAGES:100}
+      timeout: ${EXTERNAL_API_TIMEOUT:30}
+
+  batch:
+    job-name: ${BATCH_JOB_NAME:data-ingestion-job}
+    chunk-size: ${BATCH_CHUNK_SIZE:500}
+    skip-limit: ${BATCH_SKIP_LIMIT:100}
+
+# Actuator configuration for monitoring
+management:
+  server:
+    port: 8081
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,flyway
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+    metrics:
+      enabled: true
+    prometheus:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+      environment: ${ENVIRONMENT:local}
+
+# Logging configuration
+logging:
+  level:
+    com.example.ingestion: ${LOG_LEVEL:INFO}
+    org.springframework.batch: INFO
+    org.springframework.web: INFO
+    org.flywaydb: INFO
+    org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql.BasicBinder: WARN
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level [%X{correlationId:-}] %logger{36} - %msg%n"
+    file: "%d{ISO8601} [%thread] %-5level [%X{correlationId:-}] %logger{36} - %msg%n"
+
+# OpenAPI/Swagger configuration
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: alpha
+    tagsSorter: alpha
+
+---
+# Local development profile
+spring:
+  config:
+    activate:
+      on-profile: local
+  
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ingestion_db
+    
+logging:
+  level:
+    com.example.ingestion: DEBUG
+    org.springframework.batch: DEBUG
+
+app:
+  external:
+    api:
+      base-url: http://localhost:3000
+
+---
+# Development profile
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+logging:
+  level:
+    com.example.ingestion: DEBUG
+
+app:
+  external:
+    api:
+      base-url: ${EXTERNAL_API_BASE_URL:https://api-dev.example.com}
+
+---
+# Production profile
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+logging:
+  level:
+    com.example.ingestion: INFO
+    org.springframework.batch: WARN
+
+app:
+  external:
+    api:
+      base-url: ${EXTERNAL_API_BASE_URL:https://api.example.com}
+
+---
+# Batch processing profile (for dedicated batch containers)
+spring:
+  config:
+    activate:
+      on-profile: batch
+  
+  batch:
+    job:
+      enabled: ${BATCH_AUTO_START:false}
+
+# Enable batch scheduling
+app:
+  batch:
+    scheduling:
+      enabled: ${APP_BATCH_SCHEDULING_ENABLED:true}
+      cron: ${APP_BATCH_SCHEDULING_CRON:0 */30 * * * ?}
+
+logging:
+  level:
+    com.example.ingestion.batch: DEBUG
+    com.example.ingestion.config: INFO

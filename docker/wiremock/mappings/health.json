@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "/health"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "status": "UP",
+      "timestamp": "{{now format='yyyy-MM-dd HH:mm:ss'}}",
+      "service": "Mock External API"
+    }
+  }
+}

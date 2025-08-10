@@ -1,0 +1,44 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPattern": "/api/data\\?.*"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "data": [
+        {
+          "id": "{{randomValue type='UUID'}}",
+          "name": "{{randomValue type='FIRST_NAME'}} {{randomValue type='LAST_NAME'}}",
+          "email": "{{randomValue type='EMAIL'}}",
+          "phone": "+1-{{randomInt lower=200 upper=999}}-{{randomInt lower=200 upper=999}}-{{randomInt lower=1000 upper=9999}}",
+          "department": "{{randomValue type='DEPARTMENT'}}",
+          "status": "{{randomValue type='STATUS'}}",
+          "created_at": "{{now offset='-30 days' format='yyyy-MM-dd HH:mm:ssZ'}}",
+          "updated_at": "{{now offset='-{{randomInt lower=1 upper=10}} days' format='yyyy-MM-dd HH:mm:ssZ'}}"
+        },
+        {
+          "id": "{{randomValue type='UUID'}}",
+          "name": "{{randomValue type='FIRST_NAME'}} {{randomValue type='LAST_NAME'}}",
+          "email": "{{randomValue type='EMAIL'}}",
+          "phone": "+1-{{randomInt lower=200 upper=999}}-{{randomInt lower=200 upper=999}}-{{randomInt lower=1000 upper=9999}}",
+          "department": "{{randomValue type='DEPARTMENT'}}",
+          "status": "{{randomValue type='STATUS'}}",
+          "created_at": "{{now offset='-25 days' format='yyyy-MM-dd HH:mm:ssZ'}}",
+          "updated_at": "{{now offset='-{{randomInt lower=1 upper=8}} days' format='yyyy-MM-dd HH:mm:ssZ'}}"
+        }
+      ],
+      "pagination": {
+        "current_page": "{{request.query.page}}",
+        "total_pages": 5,
+        "page_size": "{{request.query.size}}",
+        "total_items": 500,
+        "has_next": "{{#if (eq request.query.page '5')}}false{{else}}true{{/if}}"
+      }
+    },
+    "transformers": ["response-template"]
+  }
+}

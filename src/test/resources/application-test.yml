@@ -1,0 +1,39 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb
+    username: sa
+    password: 
+    driver-class-name: org.h2.Driver
+    
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+
+  flyway:
+    enabled: false  # Disable Flyway for tests, use JPA DDL
+
+  batch:
+    initialize-schema: embedded
+
+app:
+  external:
+    api:
+      base-url: http://localhost:8089
+      page-size: 10
+      max-pages: 3
+      timeout: 5
+
+  batch:
+    job-name: test-data-ingestion-job
+    chunk-size: 5
+    skip-limit: 2
+
+logging:
+  level:
+    com.example.ingestion: DEBUG
+    org.springframework.batch: DEBUG
+    org.springframework.test: DEBUG
