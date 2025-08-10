@@ -1,7 +1,12 @@
 package com.mohe.spring.entity
 
+import com.fasterxml.jackson.databind.JsonNode
+import com.vladmihalcea.hibernate.type.json.JsonType
 import jakarta.persistence.*
+import org.hibernate.annotations.Type
 import java.math.BigDecimal
+import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.OffsetDateTime
 
 @Entity
@@ -9,15 +14,19 @@ import java.time.OffsetDateTime
 data class Place(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long = 0,
+    val id: Long? = null,
     
     @Column(nullable = false)
     val name: String,
     
     @Column(nullable = false)
-    val title: String,
+    val title: String = name, // For backward compatibility
     
     val address: String? = null,
+    
+    @Column(name = "road_address")
+    val roadAddress: String? = null,
+    
     val location: String? = null,
     
     @Column(precision = 10, scale = 8)
@@ -78,6 +87,55 @@ data class Place(
     @Column(name = "created_at")
     val createdAt: OffsetDateTime = OffsetDateTime.now(),
     
+    // New enhanced fields
+    @Column(name = "naver_place_id", unique = true)
+    val naverPlaceId: String? = null,
+    
+    @Column(name = "google_place_id", unique = true)
+    val googlePlaceId: String? = null,
+    
+    val phone: String? = null,
+    
+    @Column(name = "website_url")
+    val websiteUrl: String? = null,
+    
+    @Type(JsonType::class)
+    @Column(name = "opening_hours", columnDefinition = "jsonb")
+    val openingHours: JsonNode? = null,
+    
+    @Column(name = "types", columnDefinition = "text[]")
+    val types: Array<String>? = null,
+    
+    @Column(name = "user_ratings_total")
+    val userRatingsTotal: Int? = null,
+    
+    @Column(name = "price_level")
+    val priceLevel: Short? = null,
+    
+    @Type(JsonType::class)
+    @Column(name = "source_flags", columnDefinition = "jsonb")
+    val sourceFlags: JsonNode? = null,
+    
+    @Column(name = "updated_at")
+    val updatedAt: LocalDateTime = LocalDateTime.now(),
+    
+    // Age tracking fields
+    @Column(name = "opened_date")
+    val openedDate: LocalDate? = null,
+    
+    @Column(name = "first_seen_at")
+    val firstSeenAt: OffsetDateTime = OffsetDateTime.now(),
+    
+    @Column(name = "last_rating_check")
+    val lastRatingCheck: OffsetDateTime? = null,
+    
+    @Column(name = "is_new_place")
+    val isNewPlace: Boolean = true,
+    
+    @Column(name = "should_recheck_rating")
+    val shouldRecheckRating: Boolean = false,
+    
+    // Relationships
     @OneToMany(mappedBy = "place", cascade = [CascadeType.ALL], fetch = FetchType.LAZY)
     val bookmarks: List<Bookmark> = emptyList(),
     
@@ -86,4 +144,27 @@ data class Place(
     
     @OneToMany(mappedBy = "place", cascade = [CascadeType.ALL], fetch = FetchType.LAZY)
     val recentViews: List<RecentView> = emptyList()
-)
+) {
+    // Helper method to get types as List<String> instead of Array<String>
+    fun getTypesList(): List<String> = types?.toList() ?: emptyList()
+    
+    // Helper methods for age-based filtering
+    fun isOlderThanSixMonths(): Boolean {
+        return firstSeenAt.isBefore(OffsetDateTime.now().minusMonths(6))
+    }
+    
+    fun isRecentlyOpened(): Boolean {
+        return openedDate?.isAfter(LocalDate.now().minusMonths(6)) ?: false
+    }
+    
+    fun shouldBeRecommended(): Boolean {
+        // Recommend if rating >= 3.0 OR if it's a new place (< 6 months old)
+        val hasGoodRating = rating.toDouble() >= 3.0
+        val isNew = isNewPlace || isRecentlyOpened()
+        return hasGoodRating || isNew
+    }
+    
+    fun needsRatingRecheck(): Boolean {
+        return shouldRecheckRating && isOlderThanSixMonths()
+    }
+}

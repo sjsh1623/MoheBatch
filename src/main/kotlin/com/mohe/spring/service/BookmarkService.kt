@@ -18,7 +18,8 @@ import org.springframework.transaction.annotation.Transactional
 class BookmarkService(
     private val bookmarkRepository: BookmarkRepository,
     private val placeRepository: PlaceRepository,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val similarityCalculationService: SimilarityCalculationService
 ) {
     
     fun toggleBookmark(request: BookmarkToggleRequest): BookmarkToggleResponse {
@@ -33,6 +34,16 @@ class BookmarkService(
         return if (existingBookmark.isPresent) {
             // Remove bookmark
             bookmarkRepository.delete(existingBookmark.get())
+            
+            // Trigger similarity recalculation for this place
+            // This runs async to not impact user experience
+            try {
+                similarityCalculationService.refreshTopKSimilarities(placeId)
+            } catch (ex: Exception) {
+                // Log error but don't fail the bookmark operation
+                // Similarity calculation is not critical for bookmark removal
+            }
+            
             BookmarkToggleResponse(
                 isBookmarked = false,
                 message = "북마크가 제거되었습니다."
@@ -44,6 +55,16 @@ class BookmarkService(
                 place = place
             )
             bookmarkRepository.save(bookmark)
+            
+            // Trigger similarity recalculation for this place
+            // This runs async to not impact user experience
+            try {
+                similarityCalculationService.refreshTopKSimilarities(placeId)
+            } catch (ex: Exception) {
+                // Log error but don't fail the bookmark operation
+                // Similarity calculation is not critical for bookmark creation
+            }
+            
             BookmarkToggleResponse(
                 isBookmarked = true,
                 message = "북마크가 추가되었습니다."

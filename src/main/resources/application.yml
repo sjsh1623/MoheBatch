@@ -10,12 +10,18 @@ spring:
     username: mohe_user
     password: mohe_password
     driver-class-name: org.postgresql.Driver
-    hikari:
-      connection-timeout: 20000
-      maximum-pool-size: 20
-      minimum-idle: 5
-      idle-timeout: 300000
-      max-lifetime: 1200000
+
+  # Flyway configuration
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    
+  hikari:
+    connection-timeout: 20000
+    maximum-pool-size: 20
+    minimum-idle: 5
+    idle-timeout: 300000
+    max-lifetime: 1200000
     
   jpa:
     hibernate:
@@ -47,6 +53,50 @@ jwt:
   secret: mySecretKey123456789012345678901234567890123456789012345678901234567890
   access-token-expiration: 3600000 # 1 hour
   refresh-token-expiration: 2592000000 # 30 days
+
+# External API Configuration
+naver:
+  place:
+    clientId: ${NAVER_CLIENT_ID:}
+    clientSecret: ${NAVER_CLIENT_SECRET:}
+
+google:
+  places:
+    apiKey: ${GOOGLE_PLACES_API_KEY:}
+
+# Ollama Configuration
+ollama:
+  host: ${OLLAMA_HOST:http://localhost:11434}
+  model: ${OLLAMA_MODEL:llama3.1:latest}
+  timeout: ${OLLAMA_TIMEOUT:30}
+
+# Recommendation and similarity weights
+mohe:
+  recommendation:
+    topK: ${MOHE_TOP_K:100}
+    minPlacesThreshold: ${MOHE_MIN_PLACES_THRESHOLD:50}
+  weight:
+    jaccard: ${MOHE_WEIGHT_JACCARD:0.7}
+    cosine: ${MOHE_WEIGHT_COSINE:0.3}
+    mbtiBoost: ${MOHE_WEIGHT_MBTI_BOOST:0.3}
+    popularityPenalty: ${MOHE_WEIGHT_POPULARITY_PENALTY:0.1}
+    sameMbti: ${MOHE_WEIGHT_SAME_MBTI:2.0}
+    diffMbti: ${MOHE_WEIGHT_DIFF_MBTI:1.0}
+  timeDecay:
+    tauDays: ${MOHE_TIME_DECAY_TAU_DAYS:30}
+  mbtiSpecific:
+    enabled: ${MOHE_MBTI_SPECIFIC_ENABLED:false}
+  diversity:
+    enabled: ${MOHE_DIVERSITY_ENABLED:true}
+  similarity:
+    scheduling:
+      enabled: ${MOHE_SIMILARITY_SCHEDULING_ENABLED:true}
+      cron: ${MOHE_SIMILARITY_CRON:0 0 */4 * * ?}  # Every 4 hours
+    topk:
+      refresh:
+        cron: ${MOHE_SIMILARITY_TOPK_CRON:0 */30 * * * ?}  # Every 30 minutes
+  cleanup:
+    cron: ${MOHE_CLEANUP_CRON:0 0 2 * * ?}  # Daily at 2 AM
 
 # Swagger/OpenAPI Configuration
 springdoc:

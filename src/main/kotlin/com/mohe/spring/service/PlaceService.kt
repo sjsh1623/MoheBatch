@@ -23,14 +23,56 @@ class PlaceService(
     private val placeRepository: PlaceRepository,
     private val bookmarkRepository: BookmarkRepository,
     private val recentViewRepository: RecentViewRepository,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val enhancedRecommendationService: EnhancedRecommendationService
 ) {
     
     fun getRecommendations(): PlaceRecommendationsResponse {
         val currentUser = getCurrentUser()
+        
+        try {
+            // Use enhanced recommendation service with MBTI-weighted similarities
+            val enhancedResponse = enhancedRecommendationService.getEnhancedRecommendations(
+                user = currentUser,
+                limit = 15,
+                excludeBookmarked = true
+            )
+            
+            // Convert enhanced recommendations to the expected response format
+            val recommendations = enhancedResponse.recommendations.map { enhanced ->
+                PlaceRecommendationData(
+                    id = enhanced.id,
+                    title = enhanced.title,
+                    rating = enhanced.rating,
+                    reviewCount = enhanced.reviewCount,
+                    location = enhanced.location,
+                    image = enhanced.image,
+                    tags = enhanced.tags,
+                    description = enhanced.mbtiDescription ?: enhanced.description, // Prefer MBTI description
+                    transportation = enhanced.transportation,
+                    isBookmarked = enhanced.isBookmarked,
+                    recommendationReason = enhanced.recommendationReasons.firstOrNull() 
+                        ?: generateMbtiRecommendationReason(currentUser, enhanced)
+                )
+            }
+            
+            return PlaceRecommendationsResponse(
+                recommendations = recommendations,
+                totalCount = recommendations.size
+            )
+            
+        } catch (ex: Exception) {
+            // Fallback to simple recommendation if enhanced service fails
+            return getSimpleRecommendations(currentUser)
+        }
+    }
+    
+    /**
+     * Fallback to simple recommendations if enhanced service fails
+     */
+    private fun getSimpleRecommendations(currentUser: User): PlaceRecommendationsResponse {
         val bookmarkedPlaceIds = bookmarkRepository.findBookmarkedPlaceIdsByUserId(currentUser.id)
         
-        // Simple recommendation based on rating and popularity
         val pageable = PageRequest.of(0, 15, Sort.by(Sort.Direction.DESC, "rating", "popularity"))
         val places = placeRepository.findTopRatedPlaces(4.0, pageable)
         
@@ -193,6 +235,25 @@ class PlaceService(
             "E" -> "활기찬 분위기를 선호하는 ${user.mbti} 성향에 맞춤"
             "I" -> "조용한 공간을 선호하는 ${user.mbti} 성향에 맞춤"
             else -> "높은 평점의 인기 장소입니다"
+        }
+    }
+    
+    private fun generateMbtiRecommendationReason(user: User, enhanced: EnhancedPlaceRecommendation): String {
+        return when {
+            enhanced.mbtiDescription != null && user.mbti != null -> {
+                "${user.mbti} 성향에 특별히 맞춤 추천"
+            }
+            enhanced.recommendationScore.toDouble() > 0.8 -> {
+                "당신의 취향과 매우 유사한 장소"
+            }
+            enhanced.recommendationScore.toDouble() > 0.6 -> {
+                "당신의 관심사와 비슷한 장소"
+            }
+            else -> generateRecommendationReason(user, 
+                Place().apply { 
+                    // Simple placeholder conversion - in real app you'd fetch the place
+                    category = enhanced.category
+                })
         }
     }
     
