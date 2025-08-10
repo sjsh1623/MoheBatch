@@ -51,11 +51,48 @@ spring:
 # Application-specific configuration
 app:
   external:
-    api:
-      base-url: ${EXTERNAL_API_BASE_URL:http://localhost:3000}
-      page-size: ${EXTERNAL_API_PAGE_SIZE:100}
-      max-pages: ${EXTERNAL_API_MAX_PAGES:100}
-      timeout: ${EXTERNAL_API_TIMEOUT:30}
+    naver:
+      base-url: https://openapi.naver.com/v1/search/local.json
+      client-id: ${NAVER_CLIENT_ID:}
+      client-secret: ${NAVER_CLIENT_SECRET:}
+      page-size: ${NAVER_PAGE_SIZE:5}
+      max-pages: ${NAVER_MAX_PAGES:200}
+      timeout: ${NAVER_TIMEOUT:10}
+      queries: 
+        - "카페"
+        - "레스토랑" 
+        - "음식점"
+        - "펍"
+        - "바" 
+        - "베이커리"
+        - "디저트"
+        - "공원"
+        - "박물관"
+        - "미술관"
+        - "서점"
+        - "쇼핑몰"
+        - "영화관"
+        - "헬스장"
+        - "스파"
+      seoul-coords:
+        - { lat: 37.5665, lng: 126.9780, radius: 5000 }  # 중구 (명동, 종로)
+        - { lat: 37.5172, lng: 127.0473, radius: 5000 }  # 강남구
+        - { lat: 37.5440, lng: 127.0557, radius: 5000 }  # 성동구 (성수동)
+        - { lat: 37.5219, lng: 126.9895, radius: 5000 }  # 용산구 (이태원)
+        - { lat: 37.5636, lng: 126.9748, radius: 5000 }  # 중구 (명동)
+        - { lat: 37.5502, lng: 126.9224, radius: 5000 }  # 마포구 (홍대)
+        - { lat: 37.5465, lng: 127.0949, radius: 5000 }  # 광진구 (건대)
+        - { lat: 37.5814, lng: 127.0097, radius: 5000 }  # 종로구 (인사동)
+        
+    google:
+      base-url: https://maps.googleapis.com/maps/api/place
+      api-key: ${GOOGLE_PLACES_API_KEY:}
+      timeout: ${GOOGLE_TIMEOUT:15}
+      search-radius: 100  # meters for nearby search
+      photo-max-width: 400
+  
+  mohe-spring:
+    base-url: ${MOHE_SPRING_BASE_URL:http://mohe-backend:8080}
 
   batch:
     job-name: ${BATCH_JOB_NAME:data-ingestion-job}

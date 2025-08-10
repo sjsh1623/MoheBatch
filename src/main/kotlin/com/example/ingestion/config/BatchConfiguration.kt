@@ -2,10 +2,11 @@ package com.example.ingestion.config
 
 import com.example.ingestion.batch.listener.JobExecutionListener
 import com.example.ingestion.batch.processor.DataProcessor
-import com.example.ingestion.batch.reader.ExternalApiReader
-import com.example.ingestion.batch.writer.DatabaseWriter
-import com.example.ingestion.dto.ExternalDataItem
-import com.example.ingestion.entity.DataEntity
+import com.example.ingestion.batch.reader.NaverGooglePlaceReader
+import com.example.ingestion.batch.reader.EnrichedPlace
+import com.example.ingestion.batch.processor.PlaceEnrichmentProcessor
+import com.example.ingestion.batch.processor.ProcessedPlace
+import com.example.ingestion.batch.writer.MoheSpringApiWriter
 import org.slf4j.LoggerFactory
 import org.springframework.batch.core.Job
 import org.springframework.batch.core.Step
@@ -32,33 +33,33 @@ class BatchConfiguration(
     private val logger = LoggerFactory.getLogger(BatchConfiguration::class.java)
 
     @Bean
-    fun dataIngestionJob(
+    fun naverGooglePlaceIngestionJob(
         jobRepository: JobRepository,
-        dataIngestionStep: Step,
+        naverGooglePlaceStep: Step,
         jobExecutionListener: JobExecutionListener
     ): Job {
-        return JobBuilder("dataIngestionJob", jobRepository)
+        return JobBuilder("naverGooglePlaceIngestionJob", jobRepository)
             .incrementer(RunIdIncrementer())
             .listener(jobExecutionListener)
-            .start(dataIngestionStep)
+            .start(naverGooglePlaceStep)
             .build()
     }
 
     @Bean
-    fun dataIngestionStep(
+    fun naverGooglePlaceStep(
         jobRepository: JobRepository,
         transactionManager: PlatformTransactionManager,
-        externalApiReader: ExternalApiReader,
-        dataProcessor: DataProcessor,
-        databaseWriter: DatabaseWriter
+        naverGooglePlaceReader: NaverGooglePlaceReader,
+        placeEnrichmentProcessor: PlaceEnrichmentProcessor,
+        moheSpringApiWriter: MoheSpringApiWriter
     ): Step {
-        logger.info("Configuring data ingestion step with chunk size: $chunkSize, skip limit: $skipLimit")
+        logger.info("Configuring Naver+Google place ingestion step with chunk size: $chunkSize, skip limit: $skipLimit")
         
-        return StepBuilder("dataIngestionStep", jobRepository)
-            .chunk<ExternalDataItem, DataEntity>(chunkSize, transactionManager)
-            .reader(externalApiReader)
-            .processor(dataProcessor)
-            .writer(databaseWriter)
+        return StepBuilder("naverGooglePlaceStep", jobRepository)
+            .chunk<EnrichedPlace, ProcessedPlace>(chunkSize, transactionManager)
+            .reader(naverGooglePlaceReader)
+            .processor(placeEnrichmentProcessor)
+            .writer(moheSpringApiWriter)
             .faultTolerant()
             .skipPolicy(customSkipPolicy())
             .skipLimit(skipLimit)
