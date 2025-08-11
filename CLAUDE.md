@@ -15,8 +15,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Run specific test class
 ./gradlew test --tests "com.mohe.spring.MoheSpringApplicationTests"
 
+# Run tests with profiles
+./gradlew test -Dspring.profiles.active=test
+
 # Clean build
 ./gradlew clean build
+
+# Run the application locally
+./gradlew bootRun
 ```
 
 ### Docker Development
@@ -79,7 +85,7 @@ ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error(...))
 
 **Swagger Integration**: Uses SpringDoc OpenAPI 3 with comprehensive Korean documentation. All controllers use `@SwaggerApiResponse` (aliased to avoid conflict with custom `ApiResponse` class).
 
-**MBTI-Based Recommendations**: Core business logic includes MBTI personality type matching for place recommendations. The `places` table includes MBTI scoring fields, and the recommendation algorithm considers user preferences and personality type.
+**MBTI-Based Recommendations**: Core business logic includes MBTI personality type matching for place recommendations. The `places` table includes MBTI scoring fields, and the recommendation algorithm considers user preferences and personality type. Advanced recommendation engine includes configurable weights for Jaccard/Cosine similarity, time decay, diversity, and scheduled similarity matrix updates.
 
 **Multi-Step Registration**: Authentication flow supports:
 1. Email signup → OTP verification → nickname/password setup
@@ -110,3 +116,15 @@ ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error(...))
 - `/health` - Health check
 - `/swagger-ui/**` - API documentation
 - `/v3/api-docs/**` - OpenAPI specification
+
+**External Integrations**: The application includes configuration for:
+- Naver Place API (client ID/secret required)
+- Google Places API (API key required)
+- Ollama AI model integration (configurable host/model)
+- Redis for token storage (optional)
+
+**Advanced Configuration**: Comprehensive tuning parameters available for:
+- Recommendation algorithm weights and thresholds
+- Similarity matrix scheduling and refresh intervals
+- Time decay functions for recommendation scoring
+- Database connection pooling with HikariCP

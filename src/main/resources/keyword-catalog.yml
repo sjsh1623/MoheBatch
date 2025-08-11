@@ -1,0 +1,630 @@
+# Keyword Catalog Configuration
+# 100 predefined keywords for vectorization across café types, atmosphere, amenities, style, and contextual traits
+
+keywords:
+  # Café Types & Food Service (15 keywords)
+  cafe_types:
+    - id: 1
+      keyword: "specialty_coffee"
+      definition: "High-quality, artisanal coffee focus"
+      category: "service_type"
+      weight_boost: 1.2
+    - id: 2
+      keyword: "dessert_cafe"
+      definition: "Focus on desserts, pastries, sweets"
+      category: "service_type" 
+      weight_boost: 1.1
+    - id: 3
+      keyword: "brunch_spot"
+      definition: "Brunch-focused menu and timing"
+      category: "service_type"
+      weight_boost: 1.1
+    - id: 4
+      keyword: "bakery_cafe"
+      definition: "Fresh baked goods on-site"
+      category: "service_type"
+      weight_boost: 1.1
+    - id: 5
+      keyword: "tea_house"
+      definition: "Tea-focused beverage selection"
+      category: "service_type"
+      weight_boost: 1.0
+    - id: 6
+      keyword: "juice_bar"
+      definition: "Fresh juices and smoothies"
+      category: "service_type"
+      weight_boost: 1.0
+    - id: 7
+      keyword: "breakfast_spot"
+      definition: "Early morning dining focus"
+      category: "service_type"
+      weight_boost: 1.0
+    - id: 8
+      keyword: "light_meals"
+      definition: "Sandwiches, salads, light fare"
+      category: "service_type"
+      weight_boost: 1.0
+    - id: 9
+      keyword: "vegan_options"
+      definition: "Plant-based menu items available"
+      category: "dietary"
+      weight_boost: 1.3
+    - id: 10
+      keyword: "healthy_menu"
+      definition: "Health-conscious food options"
+      category: "dietary"
+      weight_boost: 1.2
+    - id: 11
+      keyword: "local_roaster"
+      definition: "Locally roasted coffee beans"
+      category: "sourcing"
+      weight_boost: 1.2
+    - id: 12
+      keyword: "artisan_drinks"
+      definition: "Craft cocktails, specialty beverages"
+      category: "service_type"
+      weight_boost: 1.1
+    - id: 13
+      keyword: "international_cuisine"
+      definition: "Non-Korean food options"
+      category: "service_type"
+      weight_boost: 1.0
+    - id: 14
+      keyword: "traditional_korean"
+      definition: "Korean traditional food/drinks"
+      category: "service_type"
+      weight_boost: 1.0
+    - id: 15
+      keyword: "fast_casual"
+      definition: "Quick service but quality food"
+      category: "service_type"
+      weight_boost: 0.9
+
+  # Atmosphere & Ambiance (20 keywords)
+  atmosphere:
+    - id: 16
+      keyword: "quiet_space"
+      definition: "Low noise level, peaceful environment"
+      category: "ambiance"
+      weight_boost: 1.4  # High value for introverts
+    - id: 17
+      keyword: "cozy_intimate"
+      definition: "Small, warm, intimate setting"
+      category: "ambiance"
+      weight_boost: 1.3
+    - id: 18
+      keyword: "bright_airy"
+      definition: "Well-lit, spacious, open feeling"
+      category: "ambiance"
+      weight_boost: 1.2
+    - id: 19
+      keyword: "rustic_charm"
+      definition: "Wood, natural materials, vintage feel"
+      category: "design"
+      weight_boost: 1.2
+    - id: 20
+      keyword: "modern_minimalist"
+      definition: "Clean lines, simple, contemporary"
+      category: "design"
+      weight_boost: 1.3
+    - id: 21
+      keyword: "industrial_style"
+      definition: "Exposed brick, metal, urban aesthetic"
+      category: "design"
+      weight_boost: 1.1
+    - id: 22
+      keyword: "vintage_retro"
+      definition: "Nostalgic, antique, throwback design"
+      category: "design"
+      weight_boost: 1.1
+    - id: 23
+      keyword: "artsy_creative"
+      definition: "Art displays, creative atmosphere"
+      category: "culture"
+      weight_boost: 1.4  # High value for NF types
+    - id: 24
+      keyword: "bookstore_cafe"
+      definition: "Books available, literary atmosphere"
+      category: "culture"
+      weight_boost: 1.4  # High value for introverts
+    - id: 25
+      keyword: "music_venue"
+      definition: "Live music, DJ, music-focused"
+      category: "entertainment"
+      weight_boost: 1.2
+    - id: 26
+      keyword: "social_buzzing"
+      definition: "Lively, energetic, social atmosphere"
+      category: "ambiance"
+      weight_boost: 0.7  # Lower for introverts
+    - id: 27
+      keyword: "romantic_setting"
+      definition: "Intimate lighting, date-friendly"
+      category: "ambiance"
+      weight_boost: 1.2
+    - id: 28
+      keyword: "family_friendly"
+      definition: "Welcoming to children and families"
+      category: "demographic"
+      weight_boost: 1.0
+    - id: 29
+      keyword: "pet_friendly"
+      definition: "Allows pets, pet amenities"
+      category: "policy"
+      weight_boost: 1.3
+    - id: 30
+      keyword: "outdoor_seating"
+      definition: "Terrace, patio, garden seating"
+      category: "space"
+      weight_boost: 1.2
+    - id: 31
+      keyword: "rooftop_view"
+      definition: "Elevated location with city views"
+      category: "location"
+      weight_boost: 1.3
+    - id: 32
+      keyword: "nature_view"
+      definition: "Garden, park, natural surroundings"
+      category: "location" 
+      weight_boost: 1.4  # High value for SF types
+    - id: 33
+      keyword: "historic_building"
+      definition: "Heritage site, historical architecture"
+      category: "location"
+      weight_boost: 1.2
+    - id: 34
+      keyword: "neighborhood_local"
+      definition: "Local hangout, community feel"
+      category: "community"
+      weight_boost: 1.1
+    - id: 35
+      keyword: "upscale_luxury"
+      definition: "Premium service, high-end experience"
+      category: "service_level"
+      weight_boost: 1.1
+
+  # Work & Study Amenities (15 keywords)
+  work_study:
+    - id: 36
+      keyword: "free_wifi"
+      definition: "Reliable internet connection"
+      category: "connectivity"
+      weight_boost: 1.3
+    - id: 37
+      keyword: "power_outlets"
+      definition: "Available charging stations"
+      category: "convenience"
+      weight_boost: 1.3
+    - id: 38
+      keyword: "study_friendly"
+      definition: "Conducive to studying, quiet zones"
+      category: "functionality"
+      weight_boost: 1.4  # High for T types
+    - id: 39
+      keyword: "work_meetings"
+      definition: "Business meeting appropriate"
+      category: "functionality"
+      weight_boost: 1.2
+    - id: 40
+      keyword: "laptop_welcome"
+      definition: "Digital nomad and laptop work friendly"
+      category: "policy"
+      weight_boost: 1.3
+    - id: 41
+      keyword: "large_tables"
+      definition: "Spacious work surfaces available"
+      category: "furniture"
+      weight_boost: 1.2
+    - id: 42
+      keyword: "private_booths"
+      definition: "Semi-private seating options"
+      category: "seating"
+      weight_boost: 1.3
+    - id: 43
+      keyword: "group_seating"
+      definition: "Tables for team meetings"
+      category: "seating"
+      weight_boost: 1.1
+    - id: 44
+      keyword: "counter_seating"
+      definition: "Bar-style individual seating"
+      category: "seating"
+      weight_boost: 1.0
+    - id: 45
+      keyword: "comfortable_chairs"
+      definition: "Ergonomic, long-stay friendly seating"
+      category: "comfort"
+      weight_boost: 1.2
+    - id: 46
+      keyword: "good_lighting"
+      definition: "Adequate lighting for reading/work"
+      category: "functionality"
+      weight_boost: 1.3
+    - id: 47
+      keyword: "meeting_rooms"
+      definition: "Private rooms available for booking"
+      category: "space"
+      weight_boost: 1.1
+    - id: 48
+      keyword: "printing_services"
+      definition: "Printing and office services available"
+      category: "services"
+      weight_boost: 1.0
+    - id: 49
+      keyword: "extended_hours"
+      definition: "Open late or 24/7"
+      category: "convenience"
+      weight_boost: 1.2
+    - id: 50
+      keyword: "co_working_space"
+      definition: "Dedicated co-working environment"
+      category: "functionality"
+      weight_boost: 1.3
+
+  # Service & Convenience (15 keywords)
+  service:
+    - id: 51
+      keyword: "fast_service"
+      definition: "Quick order and delivery"
+      category: "efficiency"
+      weight_boost: 1.2  # High for J types
+    - id: 52
+      keyword: "friendly_staff"
+      definition: "Welcoming, attentive service"
+      category: "hospitality"
+      weight_boost: 1.3
+    - id: 53
+      keyword: "knowledgeable_barista"
+      definition: "Expert coffee preparation"
+      category: "expertise"
+      weight_boost: 1.2
+    - id: 54
+      keyword: "customizable_orders"
+      definition: "Flexible menu modifications"
+      category: "flexibility"
+      weight_boost: 1.1
+    - id: 55
+      keyword: "mobile_ordering"
+      definition: "App-based ordering system"
+      category: "technology"
+      weight_boost: 1.1
+    - id: 56
+      keyword: "delivery_available"
+      definition: "Food delivery service"
+      category: "convenience"
+      weight_boost: 1.0
+    - id: 57
+      keyword: "takeaway_focus"
+      definition: "Optimized for grab-and-go"
+      category: "service_model"
+      weight_boost: 0.9
+    - id: 58
+      keyword: "reservation_system"
+      definition: "Table booking available"
+      category: "planning"
+      weight_boost: 1.1
+    - id: 59
+      keyword: "loyalty_program"
+      definition: "Rewards for regular customers"
+      category: "retention"
+      weight_boost: 1.0
+    - id: 60
+      keyword: "multilingual_staff"
+      definition: "English or other language support"
+      category: "accessibility"
+      weight_boost: 1.2
+    - id: 61
+      keyword: "wheelchair_accessible"
+      definition: "Disability-friendly facilities"
+      category: "accessibility"
+      weight_boost: 1.3
+    - id: 62
+      keyword: "parking_available"
+      definition: "On-site or nearby parking"
+      category: "convenience"
+      weight_boost: 1.2
+    - id: 63
+      keyword: "public_transport"
+      definition: "Near subway, bus stops"
+      category: "accessibility"
+      weight_boost: 1.2
+    - id: 64
+      keyword: "card_payment"
+      definition: "Credit card and digital payments"
+      category: "payment"
+      weight_boost: 1.1
+    - id: 65
+      keyword: "cash_only"
+      definition: "Cash-only payment policy"
+      category: "payment"
+      weight_boost: 0.8
+
+  # Price & Value (10 keywords)
+  pricing:
+    - id: 66
+      keyword: "budget_friendly"
+      definition: "Affordable pricing for students"
+      category: "price_range"
+      weight_boost: 1.3
+    - id: 67
+      keyword: "premium_pricing"
+      definition: "Higher cost, premium experience"
+      category: "price_range"
+      weight_boost: 0.9
+    - id: 68
+      keyword: "good_value"
+      definition: "Quality matches price point"
+      category: "value"
+      weight_boost: 1.2
+    - id: 69
+      keyword: "large_portions"
+      definition: "Generous serving sizes"
+      category: "value"
+      weight_boost: 1.1
+    - id: 70
+      keyword: "happy_hour"
+      definition: "Discounted pricing periods"
+      category: "promotion"
+      weight_boost: 1.1
+    - id: 71
+      keyword: "student_discount"
+      definition: "Special rates for students"
+      category: "promotion"
+      weight_boost: 1.3
+    - id: 72
+      keyword: "group_deals"
+      definition: "Discounts for larger parties"
+      category: "promotion"
+      weight_boost: 1.0
+    - id: 73
+      keyword: "free_samples"
+      definition: "Tasting opportunities available"
+      category: "promotion"
+      weight_boost: 1.1
+    - id: 74
+      keyword: "seasonal_specials"
+      definition: "Limited time seasonal menu"
+      category: "variety"
+      weight_boost: 1.1
+    - id: 75
+      keyword: "combo_deals"
+      definition: "Bundled meal options"
+      category: "promotion"
+      weight_boost: 1.0
+
+  # Location & Context (15 keywords)
+  location_context:
+    - id: 76
+      keyword: "university_area"
+      definition: "Near campus, student-oriented"
+      category: "location_type"
+      weight_boost: 1.3
+    - id: 77
+      keyword: "business_district"
+      definition: "Office area, professional crowd"
+      category: "location_type"
+      weight_boost: 1.1
+    - id: 78
+      keyword: "shopping_district"
+      definition: "Retail area, shopping convenience"
+      category: "location_type"
+      weight_boost: 1.1
+    - id: 79
+      keyword: "tourist_area"
+      definition: "Popular with visitors"
+      category: "location_type"
+      weight_boost: 0.9
+    - id: 80
+      keyword: "residential_neighborhood"
+      definition: "Local community, quiet area"
+      category: "location_type"
+      weight_boost: 1.2
+    - id: 81
+      keyword: "cultural_district"
+      definition: "Near museums, galleries, theaters"
+      category: "location_type"
+      weight_boost: 1.3  # High for NF types
+    - id: 82
+      keyword: "waterfront_location"
+      definition: "Near river, ocean, water views"
+      category: "scenery"
+      weight_boost: 1.3
+    - id: 83
+      keyword: "mountain_view"
+      definition: "Mountain or hill scenery"
+      category: "scenery"
+      weight_boost: 1.2
+    - id: 84
+      keyword: "urban_skyline"
+      definition: "City view, metropolitan setting"
+      category: "scenery"
+      weight_boost: 1.1
+    - id: 85
+      keyword: "hidden_gem"
+      definition: "Less known, discovered location"
+      category: "discovery"
+      weight_boost: 1.4  # High for N types
+    - id: 86
+      keyword: "landmark_nearby"
+      definition: "Close to famous attractions"
+      category: "location"
+      weight_boost: 1.1
+    - id: 87
+      keyword: "chain_brand"
+      definition: "Part of franchise system"
+      category: "brand_type"
+      weight_boost: 0.8  # Lower for unique experiences
+    - id: 88
+      keyword: "independent_local"
+      definition: "Locally owned, unique concept"
+      category: "brand_type"
+      weight_boost: 1.3
+    - id: 89
+      keyword: "popup_temporary"
+      definition: "Limited time, seasonal operation"
+      category: "duration"
+      weight_boost: 1.2
+    - id: 90
+      keyword: "established_legacy"
+      definition: "Long-standing, traditional place"
+      category: "duration"
+      weight_boost: 1.1
+
+  # Special Features (10 keywords)
+  special_features:
+    - id: 91
+      keyword: "themed_concept"
+      definition: "Unique theme or concept design"
+      category: "uniqueness"
+      weight_boost: 1.4  # High for N types
+    - id: 92
+      keyword: "instagram_worthy"
+      definition: "Photogenic, social media friendly"
+      category: "visual_appeal"
+      weight_boost: 1.2
+    - id: 93
+      keyword: "workshop_classes"
+      definition: "Coffee, cooking, art classes offered"
+      category: "education"
+      weight_boost: 1.3
+    - id: 94
+      keyword: "event_hosting"
+      definition: "Private events and parties"
+      category: "services"
+      weight_boost: 1.1
+    - id: 95
+      keyword: "board_games"
+      definition: "Games available for customers"
+      category: "entertainment"
+      weight_boost: 1.2
+    - id: 96
+      keyword: "live_entertainment"
+      definition: "Music, comedy, performance events"
+      category: "entertainment"
+      weight_boost: 1.2
+    - id: 97
+      keyword: "seasonal_outdoor"
+      definition: "Weather-dependent outdoor spaces"
+      category: "seasonal"
+      weight_boost: 1.1
+    - id: 98
+      keyword: "meditation_quiet"
+      definition: "Mindfulness, zen, peaceful focus"
+      category: "wellness"
+      weight_boost: 1.4  # High for F types
+    - id: 99
+      keyword: "community_events"
+      definition: "Local meetups, community building"
+      category: "community"
+      weight_boost: 1.3  # High for F types
+    - id: 100
+      keyword: "sustainable_eco"
+      definition: "Environmental focus, eco-friendly"
+      category: "values"
+      weight_boost: 1.3
+
+# MBTI-specific keyword preferences (used for weighting)
+mbti_preferences:
+  INTJ:
+    preferred_keywords: [36, 38, 16, 24, 39, 41, 46, 20, 85, 91, 98]  # Study-friendly, quiet, minimalist
+    boosted_categories: ["functionality", "ambiance", "design"]
+    category_multiplier: 1.5
+  
+  INTP:
+    preferred_keywords: [36, 16, 23, 24, 85, 91, 93, 95, 40, 44, 46]  # Creative, quiet, flexible
+    boosted_categories: ["culture", "uniqueness", "flexibility"]
+    category_multiplier: 1.4
+    
+  ENTJ:
+    preferred_keywords: [39, 51, 18, 35, 53, 58, 77, 62, 64, 59, 47]  # Business-focused, efficient
+    boosted_categories: ["efficiency", "service_level", "planning"]
+    category_multiplier: 1.6
+    
+  ENTP:
+    preferred_keywords: [23, 26, 91, 85, 93, 99, 25, 96, 55, 74, 89]  # Social, creative, variety
+    boosted_categories: ["entertainment", "uniqueness", "variety"]
+    category_multiplier: 1.5
+    
+  INFJ:
+    preferred_keywords: [16, 17, 23, 24, 98, 32, 27, 81, 88, 99, 100] # Quiet, meaningful, nature
+    boosted_categories: ["ambiance", "culture", "values"]
+    category_multiplier: 1.7
+    
+  INFP:
+    preferred_keywords: [23, 17, 32, 85, 88, 98, 100, 91, 24, 81, 16] # Artsy, authentic, peaceful
+    boosted_categories: ["culture", "values", "uniqueness"]
+    category_multiplier: 1.6
+    
+  ENFJ:
+    preferred_keywords: [52, 28, 99, 43, 26, 96, 81, 100, 88, 18, 29] # People-focused, community
+    boosted_categories: ["hospitality", "community", "demographic"]
+    category_multiplier: 1.5
+    
+  ENFP:
+    preferred_keywords: [26, 23, 91, 93, 96, 99, 25, 85, 89, 92, 95]  # Social, creative, fun
+    boosted_categories: ["entertainment", "social", "uniqueness"]
+    category_multiplier: 1.4
+    
+  ISTJ:
+    preferred_keywords: [51, 35, 64, 58, 87, 90, 62, 63, 68, 53, 61]  # Reliable, traditional, efficient
+    boosted_categories: ["efficiency", "reliability", "tradition"]
+    category_multiplier: 1.3
+    
+  ISFJ:
+    preferred_keywords: [52, 28, 17, 34, 88, 29, 61, 68, 16, 45, 100] # Friendly, comfortable, caring
+    boosted_categories: ["hospitality", "comfort", "community"]
+    category_multiplier: 1.4
+    
+  ESTJ:
+    preferred_keywords: [51, 39, 35, 64, 77, 58, 87, 62, 53, 47, 59]  # Business, efficient, organized
+    boosted_categories: ["efficiency", "planning", "service_level"]
+    category_multiplier: 1.5
+    
+  ESFJ:
+    preferred_keywords: [52, 28, 43, 26, 34, 99, 96, 29, 59, 68, 88]  # Social, friendly, group-oriented
+    boosted_categories: ["hospitality", "social", "community"]
+    category_multiplier: 1.4
+    
+  ISTP:
+    preferred_keywords: [40, 44, 16, 30, 32, 85, 88, 95, 19, 21, 83]  # Independent, practical, nature
+    boosted_categories: ["flexibility", "independence", "scenery"]
+    category_multiplier: 1.2
+    
+  ISFP:
+    preferred_keywords: [23, 32, 17, 30, 85, 88, 98, 100, 81, 19, 92] # Artistic, peaceful, authentic
+    boosted_categories: ["culture", "scenery", "values"]
+    category_multiplier: 1.5
+    
+  ESTP:
+    preferred_keywords: [26, 30, 25, 96, 57, 55, 78, 92, 95, 89, 83]  # Active, social, spontaneous
+    boosted_categories: ["entertainment", "activity", "spontaneity"]
+    category_multiplier: 1.3
+    
+  ESFP:
+    preferred_keywords: [26, 28, 30, 92, 96, 25, 95, 78, 89, 99, 74]  # Fun, social, trendy
+    boosted_categories: ["entertainment", "visual_appeal", "social"]
+    category_multiplier: 1.4
+
+# Extraction configuration
+extraction:
+  max_keywords: 15  # Exactly 15 keywords per vector
+  min_confidence: 0.1  # Minimum confidence threshold
+  model_name: "ollama-openai"
+  prompt_template: |
+    You are a keyword extraction expert. From the given text about a café/place, extract EXACTLY 15 keywords from the predefined list below that best describe this location.
+
+    Text to analyze: "{text}"
+
+    Available keywords (choose EXACTLY 15):
+    {keyword_list}
+
+    For each selected keyword, provide a confidence score between 0.1 and 1.0 based on how well it matches the text.
+
+    Return ONLY a JSON array with exactly 15 objects in this format:
+    [{"keyword": "keyword_name", "confidence": 0.85}, ...]
+
+    Rules:
+    - Choose exactly 15 keywords, no more, no less
+    - Confidence scores must be between 0.1 and 1.0
+    - Base confidence on text evidence, not assumptions
+    - Prioritize keywords with clear text evidence

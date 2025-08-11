@@ -48,6 +48,13 @@ dependencies {
     // Swagger/OpenAPI documentation
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.1.0")
     
+    // Vector database support  
+    implementation("com.pgvector:pgvector:0.1.4")
+    implementation("com.vladmihalcea:hibernate-types-60:2.21.1")
+    
+    // YAML configuration support
+    implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
+    
     // Test dependencies
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
