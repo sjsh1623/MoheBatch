@@ -68,7 +68,7 @@ google:
 ollama:
   host: ${OLLAMA_HOST:http://localhost:11434}
   model: ${OLLAMA_MODEL:llama3.1:latest}
-  timeout: ${OLLAMA_TIMEOUT:30}
+  timeout: ${OLLAMA_TIMEOUT:300}
 
 # Recommendation and similarity weights
 mohe:

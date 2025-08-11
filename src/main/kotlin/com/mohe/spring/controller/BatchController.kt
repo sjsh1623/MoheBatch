@@ -106,7 +106,7 @@ class BatchController(
     @PostMapping("/internal/ingest/place")
     @Operation(
         summary = "배치 장소 데이터 내부 수집",
-        description = "Naver + Google API 배치에서 수집한 통합 장소 데이터를 처리하고 MBTI 설명을 생성합니다."
+        description = "Naver + Google API 배치에서 수집한 통합 장소 데이터를 처리하고 키워드 추출을 수행합니다."
     )
     fun ingestPlaceFromBatch(
         @Parameter(description = "통합 장소 데이터 배열", required = true)
@@ -213,6 +213,6 @@ data class InternalPlaceIngestResponse(
     val updatedCount: Int,
     val skippedCount: Int,
     val errorCount: Int,
-    val mbtiGeneratedCount: Int,
+    val keywordGeneratedCount: Int,
     val errors: List<String>
 )

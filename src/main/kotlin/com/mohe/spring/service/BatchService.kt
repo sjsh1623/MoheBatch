@@ -23,6 +23,7 @@ class BatchService(
     private val userRepository: UserRepository,
     private val placeMbtiDescriptionRepository: PlaceMbtiDescriptionRepository,
     private val ollamaService: OllamaService,
+    private val keywordExtractionService: KeywordExtractionService,
     private val objectMapper: ObjectMapper
 ) {
     private val logger = LoggerFactory.getLogger(BatchService::class.java)
@@ -164,13 +165,13 @@ class BatchService(
 
     @Transactional
     fun ingestPlacesFromBatch(placeDataList: List<InternalPlaceIngestRequest>): InternalPlaceIngestResponse {
-        logger.info("Processing ${placeDataList.size} enriched place records from batch with Ollama MBTI generation")
+        logger.info("Processing ${placeDataList.size} enriched place records from batch with Ollama keyword extraction")
         
         var insertedCount = 0
         var updatedCount = 0
         var skippedCount = 0
         var errorCount = 0
-        var mbtiGeneratedCount = 0
+        var keywordGeneratedCount = 0
         val errors = mutableListOf<String>()
 
         placeDataList.forEach { placeData ->
@@ -179,11 +180,11 @@ class BatchService(
                 when (result.first) {
                     ProcessResult.INSERTED -> {
                         insertedCount++
-                        if (result.second) mbtiGeneratedCount++
+                        if (result.second) keywordGeneratedCount++
                     }
                     ProcessResult.UPDATED -> {
                         updatedCount++
-                        if (result.second) mbtiGeneratedCount++
+                        if (result.second) keywordGeneratedCount++
                     }
                     ProcessResult.SKIPPED -> skippedCount++
                 }
@@ -194,7 +195,7 @@ class BatchService(
             }
         }
 
-        logger.info("Batch place processing completed: $insertedCount inserted, $updatedCount updated, $skippedCount skipped, $errorCount errors, $mbtiGeneratedCount MBTI generated")
+        logger.info("Batch place processing completed: $insertedCount inserted, $updatedCount updated, $skippedCount skipped, $errorCount errors, $keywordGeneratedCount keywords generated")
         
         return InternalPlaceIngestResponse(
             processedCount = placeDataList.size,
@@ -202,7 +203,7 @@ class BatchService(
             updatedCount = updatedCount,
             skippedCount = skippedCount,
             errorCount = errorCount,
-            mbtiGeneratedCount = mbtiGeneratedCount,
+            keywordGeneratedCount = keywordGeneratedCount,
             errors = errors
         )
     }
@@ -232,11 +233,11 @@ class BatchService(
             // Store external raw data for audit
             storeExternalRawData(place.id!!, placeData)
             
-            // Generate MBTI descriptions using Ollama
-            val mbtiGenerated = generateMbtiDescriptionsForPlace(place)
+            // Generate keyword extraction using Ollama
+            val keywordGenerated = generateKeywordExtractionForPlace(place)
             
             val result = if (existingPlace != null) ProcessResult.UPDATED else ProcessResult.INSERTED
-            Pair(result, mbtiGenerated)
+            Pair(result, keywordGenerated)
             
         } catch (ex: DataIntegrityViolationException) {
             logger.warn("Data integrity violation for place ${placeData.name}: ${ex.message}")
@@ -383,35 +384,109 @@ class BatchService(
         }
     }
     
-    private fun generateMbtiDescriptionsForPlace(place: Place): Boolean {
+    private fun generateKeywordExtractionForPlace(place: Place): Boolean {
         return try {
-            val mbtiDescriptions = ollamaService.generateMbtiDescriptions(
+            // Build comprehensive place description for keyword extraction
+            val contextDescription = buildContextDescription(place)
+            
+            val keywordResult = keywordExtractionService.extractKeywords(
+                placeId = place.id!!,
                 placeName = place.name,
-                placeDescription = place.description ?: "",
-                category = place.category ?: ""
+                placeDescription = contextDescription,
+                category = place.category ?: "",
+                additionalContext = buildAdditionalContext(place)
             )
             
-            mbtiDescriptions.forEach { (mbti, description) ->
-                val promptHash = ollamaService.generatePromptHash(
-                    place.name, place.description ?: "", place.category ?: "", mbti
-                )
-                
-                placeMbtiDescriptionRepository.upsertMbtiDescription(
-                    placeId = place.id!!,
-                    mbti = mbti,
-                    description = description,
-                    model = "llama3.1:latest", // Should come from config
-                    promptHash = promptHash,
-                    updatedAt = LocalDateTime.now()
-                )
-            }
-            
-            logger.debug("Generated MBTI descriptions for place: ${place.name}")
+            logger.debug("Generated keyword extraction for place: ${place.name} - ${keywordResult.selectedKeywords.size} keywords extracted")
             true
         } catch (e: Exception) {
-            logger.error("Failed to generate MBTI descriptions for place ${place.name}: ${e.message}", e)
+            logger.error("Failed to generate keyword extraction for place ${place.name}: ${e.message}", e)
             false
         }
+    }
+    
+    private fun buildContextDescription(place: Place): String {
+        val parts = mutableListOf<String>()
+        
+        // Main description
+        place.description?.takeIf { it.isNotBlank() }?.let { parts.add(it) }
+        
+        // Category information
+        place.category?.takeIf { it.isNotBlank() }?.let { parts.add("카테고리: $it") }
+        
+        // Location information
+        place.address?.takeIf { it.isNotBlank() }?.let { parts.add("주소: $it") }
+        
+        // Rating information
+        if (place.rating != null && place.rating > BigDecimal.ZERO) {
+            val ratingText = when {
+                place.rating >= BigDecimal("4.5") -> "매우 높은 평점의"
+                place.rating >= BigDecimal("4.0") -> "높은 평점의"
+                place.rating >= BigDecimal("3.5") -> "좋은 평점의"
+                place.rating >= BigDecimal("3.0") -> "괜찮은 평점의"
+                else -> "평점이 있는"
+            }
+            parts.add("$ratingText 장소 (${place.rating}/5.0)")
+        }
+        
+        // Price level information
+        place.priceLevel?.let { priceLevel ->
+            val priceText = when (priceLevel.toInt()) {
+                0 -> "무료"
+                1 -> "저렴한"
+                2 -> "적당한 가격의"
+                3 -> "비싼"
+                4 -> "매우 비싼"
+                else -> "가격대가 있는"
+            }
+            parts.add("$priceText 장소")
+        }
+        
+        return if (parts.isNotEmpty()) {
+            parts.joinToString(". ")
+        } else {
+            "${place.name}은/는 ${place.category ?: "특별한"} 장소입니다."
+        }
+    }
+    
+    private fun buildAdditionalContext(place: Place): String {
+        val context = mutableListOf<String>()
+        
+        // Google Places types
+        place.types?.let { types ->
+            if (types.isNotEmpty()) {
+                context.add("유형: ${types.joinToString(", ")}")
+            }
+        }
+        
+        // Opening hours availability
+        place.openingHours?.let { 
+            context.add("영업시간 정보 있음")
+        }
+        
+        // Website availability
+        place.websiteUrl?.takeIf { it.isNotBlank() }?.let {
+            context.add("웹사이트 있음")
+        }
+        
+        // Phone availability
+        place.phone?.takeIf { it.isNotBlank() }?.let {
+            context.add("전화번호 있음")
+        }
+        
+        // User ratings total
+        place.userRatingsTotal?.let { ratingsTotal ->
+            val popularityText = when {
+                ratingsTotal >= 1000 -> "매우 인기 있는"
+                ratingsTotal >= 500 -> "인기 있는"
+                ratingsTotal >= 100 -> "알려진"
+                ratingsTotal >= 10 -> "리뷰가 있는"
+                else -> "새로운"
+            }
+            context.add("$popularityText 장소 (리뷰 ${ratingsTotal}개)")
+        }
+        
+        return context.joinToString(", ")
     }
     
     private fun validateEnrichedPlaceData(placeData: InternalPlaceIngestRequest) {
