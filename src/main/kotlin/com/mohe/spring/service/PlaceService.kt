@@ -43,7 +43,7 @@ class PlaceService(
                 PlaceRecommendationData(
                     id = enhanced.id,
                     title = enhanced.title,
-                    rating = enhanced.rating,
+                    rating = enhanced.rating?.let { java.math.BigDecimal(it.toString()) } ?: java.math.BigDecimal.ZERO,
                     reviewCount = enhanced.reviewCount,
                     location = enhanced.location,
                     image = enhanced.image,
@@ -216,10 +216,12 @@ class PlaceService(
     }
     
     private fun recordRecentView(user: User, place: Place) {
-        val existingView = recentViewRepository.findByUserIdAndPlaceId(user.id, place.id)
+        val userId = user.id ?: return
+        val placeId = place.id ?: return
+        val existingView = recentViewRepository.findByUserIdAndPlaceId(userId, placeId)
         
         if (existingView != null) {
-            recentViewRepository.updateViewedAt(user.id, place.id, OffsetDateTime.now())
+            recentViewRepository.updateViewedAt(userId, placeId, OffsetDateTime.now())
         } else {
             val recentView = RecentView(
                 user = user,
@@ -250,10 +252,10 @@ class PlaceService(
                 "당신의 관심사와 비슷한 장소"
             }
             else -> generateRecommendationReason(user, 
-                Place().apply { 
-                    // Simple placeholder conversion - in real app you'd fetch the place
+                Place(
+                    name = enhanced.title,
                     category = enhanced.category
-                })
+                ))
         }
     }
     

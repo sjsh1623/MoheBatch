@@ -34,7 +34,7 @@ class AsyncConfiguration : AsyncConfigurer {
         executor.corePoolSize = 4
         executor.maxPoolSize = 8
         executor.queueCapacity = 100
-        executor.threadNamePrefix = "MoheAsync-"
+        executor.setThreadNamePrefix("MoheAsync-")
         executor.keepAliveSeconds = 60
         
         // Handle rejected tasks gracefully
@@ -63,7 +63,7 @@ class AsyncConfiguration : AsyncConfigurer {
         executor.corePoolSize = 2
         executor.maxPoolSize = 4
         executor.queueCapacity = 50
-        executor.threadNamePrefix = "Similarity-"
+        executor.setThreadNamePrefix("Similarity-")
         executor.keepAliveSeconds = 300 // Longer keep-alive for stability
         
         executor.setRejectedExecutionHandler(CustomRejectedExecutionHandler())
@@ -83,7 +83,7 @@ class AsyncConfiguration : AsyncConfigurer {
      */
     inner class CustomRejectedExecutionHandler : RejectedExecutionHandler {
         override fun rejectedExecution(r: Runnable, executor: ThreadPoolExecutor) {
-            logger.warn("Task rejected by executor: ${executor.threadNamePrefix} (active: ${executor.activeCount}, pool: ${executor.poolSize}, queue: ${executor.queue.size})")
+            logger.warn("Task rejected by executor (active: ${executor.activeCount}, pool: ${executor.poolSize}, queue: ${executor.queue.size})")
             
             // Try to execute in caller thread as fallback
             try {

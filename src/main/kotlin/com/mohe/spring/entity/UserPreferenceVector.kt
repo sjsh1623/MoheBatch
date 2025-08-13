@@ -134,11 +134,3 @@ data class UserPreferenceVector(
     }
 }
 
-/**
- * Data class representing a selected keyword with confidence
- */
-data class SelectedKeyword(
-    val keywordId: Int,
-    val keyword: String,
-    val confidence: Double
-)

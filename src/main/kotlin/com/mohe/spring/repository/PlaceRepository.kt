@@ -49,6 +49,8 @@ interface PlaceRepository : JpaRepository<Place, Long> {
     
     fun findByGooglePlaceId(googlePlaceId: String): Place?
     
+    fun findByName(name: String): Optional<Place>
+    
     @Query("""
         SELECT p FROM Place p 
         WHERE p.name = :name 

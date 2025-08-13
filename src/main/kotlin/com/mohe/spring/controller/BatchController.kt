@@ -55,7 +55,7 @@ class BatchController(
         } catch (e: IllegalArgumentException) {
             ResponseEntity.badRequest().body(
                 ApiResponse.error(
-                    code = ErrorCode.INVALID_REQUEST,
+                    code = ErrorCode.VALIDATION_ERROR,
                     message = e.message ?: "잘못된 장소 데이터입니다",
                     path = httpRequest.requestURI
                 )
@@ -87,7 +87,7 @@ class BatchController(
         } catch (e: IllegalArgumentException) {
             ResponseEntity.badRequest().body(
                 ApiResponse.error(
-                    code = ErrorCode.INVALID_REQUEST,
+                    code = ErrorCode.VALIDATION_ERROR,
                     message = e.message ?: "잘못된 사용자 데이터입니다",
                     path = httpRequest.requestURI
                 )
@@ -119,7 +119,7 @@ class BatchController(
         } catch (e: IllegalArgumentException) {
             ResponseEntity.badRequest().body(
                 ApiResponse.error(
-                    code = ErrorCode.INVALID_REQUEST,
+                    code = ErrorCode.VALIDATION_ERROR,
                     message = e.message ?: "잘못된 장소 데이터입니다",
                     path = httpRequest.requestURI
                 )

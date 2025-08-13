@@ -57,9 +57,10 @@ class VectorSimilarityService(
         
         // Extract keywords using Ollama
         val extractionResult = keywordExtractionService.extractKeywords(
-            text = combinedText,
-            contextType = "user",
-            userMbti = user.mbti
+            placeId = 0L, // User profile mode
+            placeName = "user-${user.id}",
+            placeDescription = combinedText,
+            category = "user-profile"
         )
         
         // Create vector entity
@@ -67,11 +68,10 @@ class VectorSimilarityService(
             user = user,
             rawProfileText = combinedText,
             combinedPreferencesText = combinedText,
-            preferenceVector = extractionResult.getVectorAsString(),
-            selectedKeywords = objectMapper.readTree(extractionResult.getSelectedKeywordsAsJson()),
-            extractionSource = extractionResult.extractionSource,
-            modelName = extractionResult.modelName,
-            extractionPromptHash = extractionResult.promptHash
+            preferenceVector = extractionResult.vectorArray.joinToString(",", "[", "]"),
+            selectedKeywords = objectMapper.valueToTree(extractionResult.selectedKeywords),
+            extractionSource = "ollama-api",
+            modelName = "keyword-extraction-model"
         )
         
         // Save or update vector
@@ -113,9 +113,10 @@ class VectorSimilarityService(
         
         // Extract keywords using Ollama
         val extractionResult = keywordExtractionService.extractKeywords(
-            text = combinedText,
-            contextType = "place",
-            userMbti = null
+            placeId = place.id ?: 0L,
+            placeName = place.name,
+            placeDescription = combinedText,
+            category = place.category ?: "unknown"
         )
         
         // Create vector entity
@@ -123,11 +124,10 @@ class VectorSimilarityService(
             place = place,
             rawDescriptionText = combinedText,
             combinedAttributesText = combinedText,
-            descriptionVector = extractionResult.getVectorAsString(),
-            selectedKeywords = objectMapper.readTree(extractionResult.getSelectedKeywordsAsJson()),
-            extractionSource = extractionResult.extractionSource,
-            modelName = extractionResult.modelName,
-            extractionPromptHash = extractionResult.promptHash
+            descriptionVector = extractionResult.vectorArray.joinToString(",", "[", "]"),
+            selectedKeywords = objectMapper.valueToTree(extractionResult.selectedKeywords),
+            extractionSource = "ollama-api",
+            modelName = "keyword-extraction-model"
         )
         
         // Save or update vector

@@ -62,20 +62,23 @@ class KeywordRecommendationController(
     ): ResponseEntity<ApiResponse<KeywordSimilarPlacesResponse>> {
         return try {
             // Check if place exists
-            val place = placeService.getPlaceById(placeId)
-                ?: return ResponseEntity.badRequest().body(
+            val place = try {
+                placeService.getPlaceDetail(placeId.toString())
+            } catch (e: Exception) {
+                return ResponseEntity.badRequest().body(
                     ApiResponse.error(
-                        code = ErrorCode.NOT_FOUND,
+                        code = ErrorCode.RESOURCE_NOT_FOUND,
                         message = "장소를 찾을 수 없습니다",
                         path = httpRequest.requestURI
                     )
                 )
+            }
 
             // Check if keyword extraction exists for this place
             val keywordExtraction = placeKeywordExtractionRepository.findByPlaceId(placeId)
                 ?: return ResponseEntity.badRequest().body(
                     ApiResponse.error(
-                        code = ErrorCode.INVALID_REQUEST,
+                        code = ErrorCode.VALIDATION_ERROR,
                         message = "해당 장소의 키워드 추출 데이터가 없습니다",
                         path = httpRequest.requestURI
                     )
@@ -94,16 +97,18 @@ class KeywordRecommendationController(
                 .map { result ->
                     val similarPlaceId = (result[0] as? Number)?.toLong() ?: 0L
                     val similarityScore = (result[1] as? Number)?.toDouble() ?: 0.0
-                    val similarPlace = placeService.getPlaceById(similarPlaceId)
+                    val similarPlace = try {
+                        placeService.getPlaceDetail(similarPlaceId.toString())
+                    } catch (e: Exception) { null }
                     
                     if (similarPlace != null) {
                         KeywordSimilarPlace(
-                            placeId = similarPlace.id!!,
-                            name = similarPlace.name,
-                            address = similarPlace.address ?: "",
-                            category = similarPlace.category ?: "",
-                            rating = similarPlace.rating ?: BigDecimal.ZERO,
-                            imageUrl = similarPlace.imageUrl,
+                            placeId = similarPlace.place.id.toLongOrNull() ?: 0L,
+                            name = similarPlace.place.title,
+                            address = similarPlace.place.address ?: "",
+                            category = if (similarPlace.place.tags.isNotEmpty()) similarPlace.place.tags.first() else "",
+                            rating = similarPlace.place.rating,
+                            imageUrl = similarPlace.place.images.firstOrNull(),
                             similarityScore = BigDecimal(similarityScore.toString()),
                             sharedKeywords = getSharedKeywords(placeId, similarPlaceId)
                         )
@@ -113,7 +118,7 @@ class KeywordRecommendationController(
 
             val response = KeywordSimilarPlacesResponse(
                 basePlaceId = placeId,
-                basePlaceName = place.name,
+                basePlaceName = place.place.title,
                 totalSimilarPlaces = similarPlacesWithScores.size,
                 minSimilarityScore = BigDecimal(minSimilarity.toString()),
                 similarPlaces = similarPlacesWithScores
@@ -143,32 +148,35 @@ class KeywordRecommendationController(
         httpRequest: HttpServletRequest
     ): ResponseEntity<ApiResponse<KeywordExtractionResponse>> {
         return try {
-            val place = placeService.getPlaceById(placeId)
-                ?: return ResponseEntity.badRequest().body(
+            val place = try {
+                placeService.getPlaceDetail(placeId.toString())
+            } catch (e: Exception) {
+                return ResponseEntity.badRequest().body(
                     ApiResponse.error(
-                        code = ErrorCode.NOT_FOUND,
+                        code = ErrorCode.RESOURCE_NOT_FOUND,
                         message = "장소를 찾을 수 없습니다",
                         path = httpRequest.requestURI
                     )
                 )
+            }
 
             // Build description for keyword extraction
             val description = listOfNotNull(
-                place.description,
-                place.category?.let { "카테고리: $it" },
-                place.address?.let { "주소: $it" }
+                place.place.description,
+                if (place.place.tags.isNotEmpty()) "카테고리: ${place.place.tags.joinToString(", ")}" else null,
+                place.place.address?.let { "주소: $it" }
             ).joinToString(". ")
 
             val result = keywordExtractionService.extractKeywords(
                 placeId = placeId,
-                placeName = place.name,
+                placeName = place.place.title,
                 placeDescription = description,
-                category = place.category ?: ""
+                category = if (place.place.tags.isNotEmpty()) place.place.tags.first() else ""
             )
 
             val response = KeywordExtractionResponse(
                 placeId = placeId,
-                placeName = place.name,
+                placeName = place.place.title,
                 extractedKeywords = result.selectedKeywords.map { 
                     ExtractedKeyword(
                         keyword = it.keyword,

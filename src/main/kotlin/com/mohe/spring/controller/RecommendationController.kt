@@ -51,7 +51,7 @@ class RecommendationController(
         return try {
             if (limit < 1 || limit > 50) {
                 return ResponseEntity.badRequest().body(
-                    ApiResponse.error("Limit must be between 1 and 50")
+                    ApiResponse.error("VALIDATION_ERROR", "Limit must be between 1 and 50")
                 )
             }
 
@@ -71,7 +71,7 @@ class RecommendationController(
         } catch (ex: Exception) {
             logger.error("Failed to get enhanced recommendations for user ${userPrincipal.id}", ex)
             ResponseEntity.status(500).body(
-                ApiResponse.error("Failed to generate recommendations: ${ex.message}")
+                ApiResponse.error("INTERNAL_SERVER_ERROR", "Failed to generate recommendations: ${ex.message}")
             )
         }
     }
@@ -99,13 +99,13 @@ class RecommendationController(
         return try {
             if (!isValidMbtiType(mbtiType)) {
                 return ResponseEntity.badRequest().body(
-                    ApiResponse.error("Invalid MBTI type: $mbtiType")
+                    ApiResponse.error("VALIDATION_ERROR", "Invalid MBTI type: $mbtiType")
                 )
             }
 
             if (limit < 1 || limit > 50) {
                 return ResponseEntity.badRequest().body(
-                    ApiResponse.error("Limit must be between 1 and 50")
+                    ApiResponse.error("VALIDATION_ERROR", "Limit must be between 1 and 50")
                 )
             }
 
@@ -128,7 +128,7 @@ class RecommendationController(
         } catch (ex: Exception) {
             logger.error("Failed to get MBTI-specific recommendations for user ${userPrincipal.id} with MBTI $mbtiType", ex)
             ResponseEntity.status(500).body(
-                ApiResponse.error("Failed to generate MBTI-specific recommendations: ${ex.message}")
+                ApiResponse.error("INTERNAL_SERVER_ERROR", "Failed to generate MBTI-specific recommendations: ${ex.message}")
             )
         }
     }
@@ -154,7 +154,7 @@ class RecommendationController(
 
             val explanation = mapOf(
                 "userId" to user.id,
-                "userMbti" to user.mbti,
+                "userMbti" to (user.mbti ?: "unknown"),
                 "algorithm" to "mbti_similarity_based",
                 "explanation" to mapOf(
                     "step1" to "사용자의 북마크된 장소들을 분석합니다",
@@ -176,7 +176,7 @@ class RecommendationController(
         } catch (ex: Exception) {
             logger.error("Failed to get recommendation explanation for user ${userPrincipal.id}", ex)
             ResponseEntity.status(500).body(
-                ApiResponse.error("Failed to generate explanation: ${ex.message}")
+                ApiResponse.error("INTERNAL_SERVER_ERROR", "Failed to generate explanation: ${ex.message}")
             )
         }
     }

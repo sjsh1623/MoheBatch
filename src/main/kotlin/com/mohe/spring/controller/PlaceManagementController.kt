@@ -47,7 +47,7 @@ class PlaceManagementController(
         return try {
             if (targetCount < 1 || targetCount > 500) {
                 return ResponseEntity.badRequest().body(
-                    ApiResponse.error("Target count must be between 1 and 500")
+                    ApiResponse.error("VALIDATION_ERROR", "Target count must be between 1 and 500")
                 )
             }
 
@@ -60,7 +60,7 @@ class PlaceManagementController(
                     "message" to "Place fetching completed",
                     "targetCount" to targetCount,
                     "fetchedCount" to fetchedCount,
-                    "category" to category,
+                    "category" to (category ?: "all"),
                     "status" to "completed"
                 ))
             )
@@ -68,7 +68,7 @@ class PlaceManagementController(
         } catch (ex: Exception) {
             logger.error("Failed to trigger place fetching", ex)
             ResponseEntity.status(500).body(
-                ApiResponse.error("Failed to trigger place fetching: ${ex.message}")
+                ApiResponse.error("INTERNAL_SERVER_ERROR", "Failed to trigger place fetching: ${ex.message}")
             )
         }
     }
@@ -101,9 +101,9 @@ class PlaceManagementController(
                 ApiResponse.success(mapOf(
                     "currentCount" to currentCount,
                     "minRequired" to minRequired,
-                    "category" to category,
+                    "category" to (category ?: "all"),
                     "actionTaken" to isActionTaken,
-                    "status" if isActionTaken -> "fetching_triggered" else "sufficient",
+                    "status" to if (isActionTaken) "fetching_triggered" else "sufficient",
                     "message" to if (isActionTaken) {
                         "Insufficient places found, fetching triggered"
                     } else {
@@ -115,7 +115,7 @@ class PlaceManagementController(
         } catch (ex: Exception) {
             logger.error("Failed to check place availability", ex)
             ResponseEntity.status(500).body(
-                ApiResponse.error("Failed to check place availability: ${ex.message}")
+                ApiResponse.error("INTERNAL_SERVER_ERROR", "Failed to check place availability: ${ex.message}")
             )
         }
     }
@@ -138,7 +138,7 @@ class PlaceManagementController(
         return try {
             if (maxPlacesToCheck < 1 || maxPlacesToCheck > 200) {
                 return ResponseEntity.badRequest().body(
-                    ApiResponse.error("Max places to check must be between 1 and 200")
+                    ApiResponse.error("VALIDATION_ERROR", "Max places to check must be between 1 and 200")
                 )
             }
 
@@ -151,7 +151,7 @@ class PlaceManagementController(
         } catch (ex: Exception) {
             logger.error("Failed to trigger place cleanup", ex)
             ResponseEntity.status(500).body(
-                ApiResponse.error("Failed to trigger place cleanup: ${ex.message}")
+                ApiResponse.error("INTERNAL_SERVER_ERROR", "Failed to trigger place cleanup: ${ex.message}")
             )
         }
     }
@@ -174,7 +174,7 @@ class PlaceManagementController(
         } catch (ex: Exception) {
             logger.error("Failed to get cleanup statistics", ex)
             ResponseEntity.status(500).body(
-                ApiResponse.error("Failed to get cleanup statistics: ${ex.message}")
+                ApiResponse.error("INTERNAL_SERVER_ERROR", "Failed to get cleanup statistics: ${ex.message}")
             )
         }
     }
@@ -212,7 +212,7 @@ class PlaceManagementController(
         } catch (ex: Exception) {
             logger.error("Failed to recheck place rating for place $placeId", ex)
             ResponseEntity.status(500).body(
-                ApiResponse.error("Failed to recheck place rating: ${ex.message}")
+                ApiResponse.error("INTERNAL_SERVER_ERROR", "Failed to recheck place rating: ${ex.message}")
             )
         }
     }

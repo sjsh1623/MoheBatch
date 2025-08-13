@@ -184,24 +184,25 @@ class VectorController(
     ): ResponseEntity<ApiResponse<KeywordExtractionTestResponse>> {
         
         val result = keywordExtractionService.extractKeywords(
-            text = request.text,
-            contextType = request.contextType,
-            userMbti = request.mbti
+            placeId = 0L, // Test mode
+            placeName = "테스트 장소",
+            placeDescription = request.text,
+            category = request.contextType ?: "테스트"
         )
         
         return ResponseEntity.ok(
             ApiResponse.success(
                 KeywordExtractionTestResponse(
-                    originalText = result.originalText,
-                    normalizedText = result.normalizedText,
+                    originalText = request.text,
+                    normalizedText = request.text, // Use input text as normalized text
                     selectedKeywords = result.selectedKeywords.map { 
                         "${it.keyword}(${String.format("%.3f", it.confidence)})" 
                     },
-                    vectorDimension = result.vector.size,
-                    nonZeroValues = result.vector.count { it != 0.0f },
-                    extractionSource = result.extractionSource,
-                    modelName = result.modelName,
-                    overallConfidence = String.format("%.3f", result.confidence)
+                    vectorDimension = result.vectorArray.size,
+                    nonZeroValues = result.vectorArray.count { it != 0.0f },
+                    extractionSource = "ollama-api",
+                    modelName = "keyword-extraction-model",
+                    overallConfidence = String.format("%.3f", result.selectedKeywords.map { it.confidence }.average())
                 )
             )
         )

@@ -121,14 +121,12 @@ class BatchService(
                     description = placeData.description ?: existing.description,
                     category = placeData.category ?: existing.category,
                     address = placeData.address ?: existing.address,
-                    latitude = placeData.latitude ?: existing.latitude,
-                    longitude = placeData.longitude ?: existing.longitude,
+                    latitude = placeData.latitude?.let { BigDecimal(it.toString()) } ?: existing.latitude,
+                    longitude = placeData.longitude?.let { BigDecimal(it.toString()) } ?: existing.longitude,
                     phone = placeData.phone ?: existing.phone,
-                    website = placeData.website ?: existing.website,
-                    rating = placeData.rating ?: existing.rating,
-                    tags = placeData.tags?.let { it.joinToString(",") } ?: existing.tags,
-                    hours = placeData.hours ?: existing.hours,
-                    updatedAt = LocalDateTime.now()
+                    rating = placeData.rating?.let { BigDecimal(it.toString()) } ?: existing.rating,
+                    tags = placeData.tags ?: existing.tags,
+                    operatingHours = placeData.hours ?: existing.operatingHours
                 )
                 
                 placeRepository.save(updatedPlace)
@@ -142,15 +140,13 @@ class BatchService(
                     description = placeData.description,
                     category = placeData.category,
                     address = placeData.address,
-                    latitude = placeData.latitude,
-                    longitude = placeData.longitude,
+                    latitude = placeData.latitude?.let { BigDecimal(it.toString()) },
+                    longitude = placeData.longitude?.let { BigDecimal(it.toString()) },
                     phone = placeData.phone,
-                    website = placeData.website,
-                    rating = placeData.rating,
-                    tags = placeData.tags?.joinToString(","),
-                    hours = placeData.hours,
-                    createdAt = LocalDateTime.now(),
-                    updatedAt = LocalDateTime.now()
+                    rating = placeData.rating?.let { BigDecimal(it.toString()) } ?: BigDecimal.ZERO,
+                    tags = placeData.tags ?: emptyList(),
+                    operatingHours = placeData.hours,
+                    createdAt = OffsetDateTime.now()
                 )
                 
                 placeRepository.save(newPlace)
@@ -258,10 +254,9 @@ class BatchService(
                 
                 // Update existing user with new information
                 val updatedUser = existing.copy(
-                    nickname = userData.name,
+                    nickname = userData.name
                     // Note: We don't update email as it's the primary identifier
                     // phone = userData.phone, // Uncomment if User entity has phone field
-                    updatedAt = LocalDateTime.now()
                 )
                 
                 userRepository.save(updatedUser)
