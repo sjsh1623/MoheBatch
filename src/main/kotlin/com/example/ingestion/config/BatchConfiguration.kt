@@ -5,7 +5,7 @@ import com.example.ingestion.batch.processor.DataProcessor
 import com.example.ingestion.batch.reader.NaverGooglePlaceReader
 import com.example.ingestion.batch.reader.EnrichedPlace
 import com.example.ingestion.batch.processor.PlaceEnrichmentProcessor
-import com.example.ingestion.batch.processor.ProcessedPlace
+import com.example.ingestion.dto.ProcessedPlace
 import com.example.ingestion.batch.writer.MoheSpringApiWriter
 import org.slf4j.LoggerFactory
 import org.springframework.batch.core.Job

@@ -46,7 +46,7 @@ class JobExecutionListener(
 
     override fun afterJob(jobExecution: JobExecution) {
         val duration = if (jobExecution.startTime != null && jobExecution.endTime != null) {
-            Duration.between(jobExecution.startTime.toInstant(), jobExecution.endTime.toInstant())
+            Duration.between(jobExecution.startTime, jobExecution.endTime)
         } else {
             Duration.ZERO
         }
@@ -67,7 +67,7 @@ class JobExecutionListener(
                 stepExecution.skipCount,
                 stepExecution.let { 
                     if (it.startTime != null && it.endTime != null) {
-                        Duration.between(it.startTime.toInstant(), it.endTime.toInstant()).toMillis()
+                        Duration.between(it.startTime, it.endTime).toMillis()
                     } else "N/A"
                 }
             )

@@ -2,6 +2,7 @@ package com.example.ingestion.batch.processor
 
 import com.example.ingestion.batch.reader.EnrichedPlace
 import com.example.ingestion.dto.GoogleOpeningHours
+import com.example.ingestion.dto.ProcessedPlace
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.micrometer.core.instrument.MeterRegistry
@@ -10,29 +11,6 @@ import org.springframework.batch.item.ItemProcessor
 import org.springframework.stereotype.Component
 import java.math.BigDecimal
 import java.time.LocalDateTime
-
-data class ProcessedPlace(
-    val naverPlaceId: String,
-    val googlePlaceId: String?,
-    val name: String,
-    val description: String,
-    val category: String,
-    val address: String,
-    val roadAddress: String?,
-    val latitude: BigDecimal,
-    val longitude: BigDecimal,
-    val phone: String?,
-    val websiteUrl: String?,
-    val rating: Double?,
-    val userRatingsTotal: Int?,
-    val priceLevel: Int?,
-    val types: List<String>,
-    val openingHours: String?, // JSON string
-    val imageUrl: String?,
-    val sourceFlags: Map<String, Any>,
-    val naverRawData: String, // JSON string
-    val googleRawData: String? // JSON string
-)
 
 @Component
 class PlaceEnrichmentProcessor(

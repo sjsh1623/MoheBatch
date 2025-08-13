@@ -1,5 +1,6 @@
 package com.example.ingestion.batch.writer
 
+import com.example.ingestion.dto.ProcessedPlace
 import com.example.ingestion.entity.DataEntity
 import io.micrometer.core.instrument.MeterRegistry
 import org.slf4j.LoggerFactory
@@ -45,6 +46,7 @@ class MoheSpringApiWriter(
             meterRegistry.counter("batch_database_inserts").increment(response.insertedCount.toDouble())
             meterRegistry.counter("batch_database_updates").increment(response.updatedCount.toDouble())
             meterRegistry.counter("batch_items_skipped").increment(response.skippedCount.toDouble())
+            meterRegistry.counter("batch_keywords_generated").increment(response.keywordGeneratedCount.toDouble())
             
             if (response.errorCount > 0) {
                 logger.warn("MoheSpring API reported ${response.errorCount} errors: ${response.errors}")
@@ -167,6 +169,6 @@ data class InternalPlaceIngestResponse(
     val updatedCount: Int,
     val skippedCount: Int,
     val errorCount: Int,
-    val mbtiGeneratedCount: Int,
+    val keywordGeneratedCount: Int,
     val errors: List<String>
 )

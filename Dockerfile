@@ -1,5 +1,5 @@
 # Build stage
-FROM gradle:8.4-jdk17-alpine AS build
+FROM gradle:8.4-jdk17 AS build
 
 # Set working directory
 WORKDIR /app
@@ -14,7 +14,7 @@ COPY src ./src
 RUN gradle clean build -x test --no-daemon
 
 # Runtime stage
-FROM openjdk:17-jre-slim
+FROM eclipse-temurin:17-jre
 
 # Install curl for health checks
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*

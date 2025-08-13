@@ -58,7 +58,7 @@ class WebConfiguration(
 
     private fun logResponse(): ExchangeFilterFunction {
         return ExchangeFilterFunction.ofResponseProcessor { clientResponse ->
-            logger.debug("API Response: {} {}", clientResponse.statusCode(), clientResponse.statusCode().reasonPhrase)
+            logger.debug("API Response: {}", clientResponse.statusCode())
             clientResponse.headers().asHttpHeaders().forEach { name, values ->
                 logger.debug("Response Header: {}: {}", name, values)
             }
@@ -69,9 +69,7 @@ class WebConfiguration(
     private fun errorHandler(): ExchangeFilterFunction {
         return ExchangeFilterFunction.ofResponseProcessor { clientResponse ->
             if (clientResponse.statusCode().isError) {
-                logger.error("API Error Response: {} {}", 
-                    clientResponse.statusCode(), 
-                    clientResponse.statusCode().reasonPhrase)
+                logger.error("API Error Response: {}", clientResponse.statusCode())
             }
             Mono.just(clientResponse)
         }
