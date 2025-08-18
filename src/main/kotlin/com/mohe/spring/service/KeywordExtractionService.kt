@@ -31,7 +31,7 @@ class KeywordExtractionService(
     private val placeKeywordExtractionRepository: PlaceKeywordExtractionRepository,
     private val keywordCatalogRepository: KeywordCatalogRepository,
     @Value("\${ollama.host}") private val ollamaHost: String,
-    @Value("\${ollama.model}") private val ollamaModel: String,
+    @Value("\${ollama.text.model}") private val ollamaModel: String,
     @Value("\${ollama.timeout:30}") private val ollamaTimeout: Int
 ) {
     private val logger = LoggerFactory.getLogger(KeywordExtractionService::class.java)
@@ -151,34 +151,34 @@ class KeywordExtractionService(
         val keywordList = availableKeywords.joinToString(", ")
         
         return """
-당신은 장소 분류 전문가입니다. 다음 장소 정보를 분석하여 아래 100개 키워드 목록에서 정확히 15개의 키워드를 선택하고, 각각에 대해 0.0~1.0 사이의 신뢰도 점수를 부여해주세요.
+You are a place classification expert. Please analyze the following place information and select exactly 15 keywords from the 100-keyword list below, assigning a confidence score between 0.0 and 1.0 for each.
 
-장소 정보:
-- 이름: $placeName
-- 카테고리: $category  
-- 설명: $placeDescription
-${if (additionalContext.isNotEmpty()) "- 추가 정보: $additionalContext" else ""}
+Place Information:
+- Name: $placeName
+- Category: $category  
+- Description: $placeDescription
+${if (additionalContext.isNotEmpty()) "- Additional Context: $additionalContext" else ""}
 
-사용 가능한 키워드 (100개):
+Available Keywords (100 total):
 $keywordList
 
-선택 기준:
-1. 정확히 15개의 키워드만 선택
-2. 장소의 특성을 가장 잘 설명하는 키워드 우선
-3. 다양한 카테고리에서 균형있게 선택 (분위기, 음식/음료, 서비스, 활동, 위치, 가격)
-4. 모순되는 키워드는 피하기 (예: quiet + lively)
-5. 각 키워드의 신뢰도를 0.0~1.0으로 평가
+Selection Criteria:
+1. Select exactly 15 keywords only
+2. Prioritize keywords that best describe the place characteristics
+3. Select balanced keywords from different categories (atmosphere, food/beverage, service, activities, location, price)
+4. Avoid contradictory keywords (e.g., quiet + lively)
+5. Rate each keyword's confidence from 0.0 to 1.0
 
-출력 형식 (JSON):
+Output Format (JSON):
 {
   "selected_keywords": [
-    {"keyword": "키워드1", "confidence_score": 0.9, "reasoning": "선택 이유"},
-    {"keyword": "키워드2", "confidence_score": 0.8, "reasoning": "선택 이유"},
-    ...15개
+    {"keyword": "keyword1", "confidence_score": 0.9, "reasoning": "selection reason"},
+    {"keyword": "keyword2", "confidence_score": 0.8, "reasoning": "selection reason"},
+    ...15 total
   ]
 }
 
-정확히 위 JSON 형식으로만 응답해주세요. 다른 설명이나 텍스트는 추가하지 마세요.
+Please respond only in the exact JSON format above. Do not add any other explanations or text.
         """.trimIndent()
     }
 
@@ -364,290 +364,4 @@ $keywordList
         }
     }
 
-    /**
-     * Parse Ollama response to extract keywords and confidences
-     */
-    private fun parseKeywordResponse(responseText: String): List<SelectedKeyword> {
-        try {
-            // Try to parse as JSON array first
-            val jsonStart = responseText.indexOf('[')
-            val jsonEnd = responseText.lastIndexOf(']') + 1
-            
-            if (jsonStart >= 0 && jsonEnd > jsonStart) {
-                val jsonText = responseText.substring(jsonStart, jsonEnd)
-                val jsonNode = jsonMapper.readTree(jsonText)
-                
-                val keywords = mutableListOf<SelectedKeyword>()
-                jsonNode.forEach { node ->
-                    val keywordName = node["keyword"]?.asText() ?: ""
-                    val confidence = node["confidence"]?.asDouble() ?: 0.0
-                    
-                    // Map keyword name to ID from catalog
-                    val keywordDef = keywords.find { it.keyword == keywordName }
-                    if (keywordDef != null && confidence >= extractionConfig.minConfidence) {
-                        keywords.add(
-                            SelectedKeyword(
-                                keywordId = keywordDef.id,
-                                keyword = keywordName,
-                                confidence = confidence
-                            )
-                        )
-                    }
-                }
-                
-                return keywords.take(extractionConfig.maxKeywords)
-            }
-            
-        } catch (e: Exception) {
-            logger.warn("Failed to parse JSON response, trying fallback parsing", e)
-        }
-        
-        // Fallback: try to extract keywords from text
-        return parseKeywordResponseFallback(responseText)
-    }
-    
-    /**
-     * Fallback parser for non-JSON responses
-     */
-    private fun parseKeywordResponseFallback(responseText: String): List<SelectedKeyword> {
-        val keywords = mutableListOf<SelectedKeyword>()
-        val keywordMap = keywords.associateBy { it.keyword.lowercase() }
-        
-        // Extract keyword-like patterns with confidence scores
-        val patterns = listOf(
-            Regex("""(\w+(?:_\w+)*)\s*[:\-]\s*(0\.\d+|\d\.\d+)"""), // keyword: 0.85
-            Regex("""(\w+(?:_\w+)*)\s*\(([0-9.]+)\)"""), // keyword(0.85)
-            Regex(""""(\w+(?:_\w+)*)"\s*:\s*([0-9.]+)""") // "keyword": 0.85
-        )
-        
-        for (pattern in patterns) {
-            val matches = pattern.findAll(responseText.lowercase())
-            for (match in matches) {
-                val keywordName = match.groupValues[1]
-                val confidence = match.groupValues[2].toDoubleOrNull() ?: 0.0
-                
-                val keywordDef = keywordMap[keywordName]
-                if (keywordDef != null && confidence >= extractionConfig.minConfidence) {
-                    keywords.add(
-                        SelectedKeyword(
-                            keywordId = keywordDef.id,
-                            keyword = keywordDef.keyword,
-                            confidence = confidence
-                        )
-                    )
-                    
-                    if (keywords.size >= extractionConfig.maxKeywords) break
-                }
-            }
-            if (keywords.size >= extractionConfig.maxKeywords) break
-        }
-        
-        return keywords
-    }
-    
-    /**
-     * Create fallback extraction using rule-based approach
-     */
-    private fun createFallbackExtraction(
-        text: String, 
-        contextType: String,
-        userMbti: String?
-    ): KeywordExtractionResult {
-        
-        val normalizedText = preprocessText(text)
-        val fallbackKeywords = extractKeywordsRuleBased(normalizedText, contextType, userMbti)
-        val vectorResult = createVector(fallbackKeywords)
-        
-        return KeywordExtractionResult(
-            originalText = text,
-            normalizedText = normalizedText,
-            selectedKeywords = fallbackKeywords,
-            vector = vectorResult.vector,
-            extractionSource = "rule-based-fallback",
-            modelName = "internal",
-            promptHash = generatePromptHash(text),
-            confidence = 0.6 // Lower confidence for rule-based
-        )
-    }
-    
-    /**
-     * Rule-based keyword extraction as fallback
-     */
-    private fun extractKeywordsRuleBased(
-        text: String,
-        contextType: String,
-        userMbti: String?
-    ): List<SelectedKeyword> {
-        
-        val selectedKeywords = mutableListOf<SelectedKeyword>()
-        val textLower = text.lowercase()
-        
-        // Simple keyword matching based on text content
-        keywords.forEach { keywordDef ->
-            val matchScore = calculateKeywordMatchScore(textLower, keywordDef)
-            if (matchScore >= extractionConfig.minConfidence) {
-                selectedKeywords.add(
-                    SelectedKeyword(
-                        keywordId = keywordDef.id,
-                        keyword = keywordDef.keyword,
-                        confidence = matchScore
-                    )
-                )
-            }
-        }
-        
-        // Sort by confidence and take top 15
-        return selectedKeywords
-            .sortedByDescending { it.confidence }
-            .take(extractionConfig.maxKeywords)
-    }
-    
-    /**
-     * Calculate match score for rule-based extraction
-     */
-    private fun calculateKeywordMatchScore(text: String, keywordDef: KeywordDefinition): Double {
-        var score = 0.0
-        val keyword = keywordDef.keyword.replace("_", " ")
-        
-        // Direct keyword match
-        if (text.contains(keyword)) score += 0.8
-        
-        // Partial matches and synonyms based on keyword definition
-        when (keywordDef.keyword) {
-            "specialty_coffee" -> if (text.contains("coffee") || text.contains("espresso") || text.contains("latte")) score += 0.7
-            "quiet_space" -> if (text.contains("quiet") || text.contains("peaceful") || text.contains("study")) score += 0.8
-            "free_wifi" -> if (text.contains("wifi") || text.contains("internet") || text.contains("connection")) score += 0.9
-            // Add more keyword-specific matching rules as needed
-        }
-        
-        return (score * keywordDef.weightBoost).coerceAtMost(1.0)
-    }
-    
-    /**
-     * Build extraction prompt for Ollama
-     */
-    private fun buildExtractionPrompt(text: String, contextType: String, userMbti: String?): String {
-        val keywordList = keywords.joinToString("\n") { "${it.id}. ${it.keyword} - ${it.definition}" }
-        
-        val mbtiContext = userMbti?.let { 
-            "\nUser MBTI Type: $it (consider MBTI-specific preferences in keyword selection)"
-        } ?: ""
-        
-        return extractionConfig.promptTemplate
-            .replace("{text}", text)
-            .replace("{keyword_list}", keywordList) + mbtiContext
-    }
-    
-    /**
-     * Preprocess text for extraction
-     */
-    private fun preprocessText(text: String): String {
-        return text.trim()
-            .replace(Regex("\\s+"), " ") // Normalize whitespace
-            .replace(Regex("[^\\w\\s가-힣]"), " ") // Keep only words, spaces, Korean
-            .take(2000) // Limit length for API efficiency
-    }
-    
-    /**
-     * Calculate overall confidence from selected keywords
-     */
-    private fun calculateOverallConfidence(keywords: List<SelectedKeyword>): Double {
-        if (keywords.isEmpty()) return 0.0
-        return keywords.map { it.confidence }.average()
-    }
-    
-    /**
-     * Generate SHA-256 hash of prompt for caching
-     */
-    private fun generatePromptHash(prompt: String): String {
-        return MessageDigest.getInstance("SHA-256")
-            .digest(prompt.toByteArray())
-            .fold("") { str, it -> str + "%02x".format(it) }
-    }
-    
-    /**
-     * Parse keywords from YAML configuration
-     */
-    private fun parseKeywords(): List<KeywordDefinition> {
-        val keywordsList = mutableListOf<KeywordDefinition>()
-        val keywordsSection = keywordCatalog["keywords"] as? Map<String, Any> ?: return keywordsList
-        
-        keywordsSection.values.forEach { categoryData ->
-            if (categoryData is List<*>) {
-                categoryData.forEach { keywordData ->
-                    if (keywordData is Map<*, *>) {
-                        keywordsList.add(
-                            KeywordDefinition(
-                                id = (keywordData["id"] as? Number)?.toInt() ?: 0,
-                                keyword = keywordData["keyword"] as? String ?: "",
-                                definition = keywordData["definition"] as? String ?: "",
-                                category = keywordData["category"] as? String ?: "",
-                                weightBoost = (keywordData["weight_boost"] as? Number)?.toDouble() ?: 1.0
-                            )
-                        )
-                    }
-                }
-            }
-        }
-        
-        return keywordsList.sortedBy { it.id }
-    }
-    
-    /**
-     * Parse extraction configuration
-     */
-    private fun parseExtractionConfig(): ExtractionConfig {
-        val extractionSection = keywordCatalog["extraction"] as? Map<String, Any> ?: emptyMap()
-        
-        return ExtractionConfig(
-            maxKeywords = (extractionSection["max_keywords"] as? Number)?.toInt() ?: 15,
-            minConfidence = (extractionSection["min_confidence"] as? Number)?.toDouble() ?: 0.1,
-            modelName = extractionSection["model_name"] as? String ?: "ollama-openai",
-            promptTemplate = extractionSection["prompt_template"] as? String ?: "Extract keywords from: {text}"
-        )
-    }
 }
-
-/**
- * Data classes for keyword extraction
- */
-data class KeywordDefinition(
-    val id: Int,
-    val keyword: String,
-    val definition: String,
-    val category: String,
-    val weightBoost: Double
-)
-
-data class ExtractionConfig(
-    val maxKeywords: Int,
-    val minConfidence: Double,
-    val modelName: String,
-    val promptTemplate: String
-)
-
-data class KeywordExtractionResult(
-    val originalText: String,
-    val normalizedText: String,
-    val selectedKeywords: List<SelectedKeyword>,
-    val vector: FloatArray,
-    val extractionSource: String,
-    val modelName: String,
-    val promptHash: String,
-    val confidence: Double
-) {
-    fun getVectorAsString(): String {
-        return "[${vector.joinToString(",")}]"
-    }
-    
-    fun getSelectedKeywordsAsJson(): String {
-        return ObjectMapper().writeValueAsString(selectedKeywords)
-    }
-}
-
-data class VectorResult(
-    val vector: FloatArray,
-    val vectorString: String,
-    val nonZeroCount: Int,
-    val magnitude: Float
-)

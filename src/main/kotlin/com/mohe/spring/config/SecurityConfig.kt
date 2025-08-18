@@ -68,6 +68,7 @@ class SecurityConfig(
                     // Public endpoints
                     .requestMatchers(
                         "/api/auth/**",
+                        "/api/batch/**",
                         "/health",
                         "/actuator/**",
                         "/swagger-ui/**",

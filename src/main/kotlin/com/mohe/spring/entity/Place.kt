@@ -3,7 +3,9 @@ package com.mohe.spring.entity
 import com.fasterxml.jackson.databind.JsonNode
 import com.vladmihalcea.hibernate.type.json.JsonType
 import jakarta.persistence.*
+import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.annotations.Type
+import org.hibernate.type.SqlTypes
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -44,10 +46,12 @@ data class Place(
     @Column(name = "image_url")
     val imageUrl: String? = null,
     
-    @Convert(converter = StringArrayConverter::class)
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(columnDefinition = "text[]")
     val images: List<String> = emptyList(),
     
-    @Convert(converter = StringArrayConverter::class)
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(columnDefinition = "text[]")
     val gallery: List<String> = emptyList(),
     
     @Column(name = "additional_image_count")
@@ -62,10 +66,12 @@ data class Place(
     @Column(name = "operating_hours")
     val operatingHours: String? = null,
     
-    @Convert(converter = StringArrayConverter::class)
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(columnDefinition = "text[]")
     val amenities: List<String> = emptyList(),
     
-    @Convert(converter = StringArrayConverter::class)
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(columnDefinition = "text[]")
     val tags: List<String> = emptyList(),
     
     @Column(name = "transportation_car_time")
@@ -74,12 +80,12 @@ data class Place(
     @Column(name = "transportation_bus_time")
     val transportationBusTime: String? = null,
     
-    @Convert(converter = StringArrayConverter::class)
-    @Column(name = "weather_tags")
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "weather_tags", columnDefinition = "text[]")
     val weatherTags: List<String> = emptyList(),
     
-    @Convert(converter = StringArrayConverter::class)
-    @Column(name = "noise_tags")
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "noise_tags", columnDefinition = "text[]")
     val noiseTags: List<String> = emptyList(),
     
     val popularity: Int = 0,
@@ -103,8 +109,9 @@ data class Place(
     @Column(name = "opening_hours", columnDefinition = "jsonb")
     val openingHours: JsonNode? = null,
     
+    @JdbcTypeCode(SqlTypes.ARRAY)
     @Column(name = "types", columnDefinition = "text[]")
-    val types: Array<String>? = null,
+    val types: List<String> = emptyList(),
     
     @Column(name = "user_ratings_total")
     val userRatingsTotal: Int? = null,
@@ -135,6 +142,9 @@ data class Place(
     @Column(name = "should_recheck_rating")
     val shouldRecheckRating: Boolean = false,
     
+    @Column(name = "keyword_vector", columnDefinition = "text")
+    val keywordVector: String? = null, // Stored as JSON array string format
+    
     // Relationships
     @OneToMany(mappedBy = "place", cascade = [CascadeType.ALL], fetch = FetchType.LAZY)
     val bookmarks: List<Bookmark> = emptyList(),
@@ -146,7 +156,7 @@ data class Place(
     val recentViews: List<RecentView> = emptyList()
 ) {
     // Helper method to get types as List<String> instead of Array<String>
-    fun getTypesList(): List<String> = types?.toList() ?: emptyList()
+    fun getTypesList(): List<String> = types
     
     // Helper methods for age-based filtering
     fun isOlderThanSixMonths(): Boolean {

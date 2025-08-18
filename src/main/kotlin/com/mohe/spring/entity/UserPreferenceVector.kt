@@ -24,12 +24,12 @@ data class UserPreferenceVector(
     val combinedPreferencesText: String? = null,
     
     // 100-dimensional vector stored as PostgreSQL vector type
-    @Column(name = "preference_vector", nullable = false, columnDefinition = "vector(100)")
+    @Column(name = "preference_vector", nullable = false, columnDefinition = "TEXT")
     val preferenceVector: String, // Stored as string representation: "[0.1, 0.0, 0.8, ...]"
     
     // Selected 15 keywords with confidences
     @Type(JsonType::class)
-    @Column(name = "selected_keywords", nullable = false, columnDefinition = "jsonb")
+    @Column(name = "selected_keywords", nullable = false, columnDefinition = "TEXT")
     val selectedKeywords: JsonNode, // [{"keyword_id": 1, "keyword": "specialty_coffee", "confidence": 0.85}, ...]
     
     @Column(name = "extraction_source", nullable = false)

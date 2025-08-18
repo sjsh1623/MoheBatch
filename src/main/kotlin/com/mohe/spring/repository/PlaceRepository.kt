@@ -7,7 +7,9 @@ import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
+import java.math.BigDecimal
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.util.*
 
@@ -104,4 +106,13 @@ interface PlaceRepository : JpaRepository<Place, Long> {
         @Param("recheckThreshold") recheckThreshold: OffsetDateTime,
         pageable: Pageable
     ): Page<Place>
+
+    @Query("SELECT p FROM Place p WHERE p.createdAt < :oldDate AND p.rating < :ratingThreshold")
+    fun findOldLowRatedPlaces(
+        @Param("oldDate") oldDate: LocalDateTime,
+        @Param("ratingThreshold") ratingThreshold: BigDecimal
+    ): List<Place>
+
+    @Query("SELECT p FROM Place p WHERE p.latitude IS NULL OR p.longitude IS NULL")
+    fun findPlacesWithoutCoordinates(): List<Place>
 }

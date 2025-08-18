@@ -74,7 +74,7 @@ class DynamicPlaceFetchingService(
         return if (currentCount < minRequiredPlaces) {
             val placesToFetch = minRequiredPlaces - currentCount
             logger.info("Insufficient places in database, fetching $placesToFetch new places")
-            fetchNewPlacesFromApis(placesToFetch, category)
+            fetchNewPlacesFromApis(placesToFetch.toInt(), category)
         } else {
             currentCount.toInt()
         }
@@ -246,12 +246,7 @@ class DynamicPlaceFetchingService(
                 if (place.shouldBeRecommended()) {
                     val savedPlace = placeRepository.save(place)
                     
-                    // Trigger MBTI description generation asynchronously
-                    try {
-                        batchService.generateMbtiDescriptionsForPlace(savedPlace)
-                    } catch (ex: Exception) {
-                        logger.warn("Failed to generate MBTI descriptions for place ${savedPlace.id}", ex)
-                    }
+                    // MBTI descriptions will be generated when needed via the keyword extraction service
                     
                     storedCount++
                 }

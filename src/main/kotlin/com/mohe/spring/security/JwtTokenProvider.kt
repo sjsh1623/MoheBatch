@@ -53,8 +53,9 @@ class JwtTokenProvider {
     fun getUserIdFromToken(token: String): Long {
         val claims = Jwts.parser()
             .setSigningKey(key)
-            .parse(token)
-            .body as Claims
+            .build()
+            .parseClaimsJws(token)
+            .body
         
         return claims.subject.toLong()
     }
@@ -63,7 +64,8 @@ class JwtTokenProvider {
         try {
             Jwts.parser()
                 .setSigningKey(key)
-                .parse(token)
+                .build()
+                .parseClaimsJws(token)
             return true
         } catch (ex: Exception) {
             return false
@@ -73,8 +75,9 @@ class JwtTokenProvider {
     fun getClaimsFromToken(token: String): Claims {
         return Jwts.parser()
             .setSigningKey(key)
-            .parse(token)
-            .body as Claims
+            .build()
+            .parseClaimsJws(token)
+            .body
     }
     
     fun getAccessTokenExpiration(): Long = accessTokenExpiration

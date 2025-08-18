@@ -64,8 +64,8 @@ class EnhancedRecommendationService(
             logger.debug("Available recommendable places: $availablePlaceCount")
             
             // Get user's bookmarked places
-            val userBookmarks = bookmarkRepository.findByUserOrderByCreatedAtDesc(user, null)
-                .content.map { it.place.id }
+            val userBookmarks = bookmarkRepository.findByUserOrderByCreatedAtDesc(user)
+                .map { it.place.id!! }
             
             if (userBookmarks.isEmpty()) {
                 logger.debug("User has no bookmarks, using rating-based recommendations with quality filtering")
@@ -293,7 +293,7 @@ class EnhancedRecommendationService(
             
             // Get MBTI-specific description
             val mbtiDescription = if (user.mbti != null) {
-                placeMbtiDescriptionRepository.findByPlaceIdAndMbti(place.id, user.mbti)?.description
+                placeMbtiDescriptionRepository.findByPlaceIdAndMbti(place.id!!, user.mbti)?.description
             } else null
             
             // Check if bookmarked
@@ -302,9 +302,9 @@ class EnhancedRecommendationService(
             EnhancedPlaceRecommendation(
                 id = place.id.toString(),
                 title = place.title,
-                rating = place.rating,
+                rating = place.rating.toDouble(),
                 reviewCount = place.reviewCount,
-                location = place.location,
+                location = place.location ?: "",
                 image = place.imageUrl,
                 tags = place.tags,
                 description = mbtiDescription ?: place.description,
@@ -435,7 +435,7 @@ class EnhancedRecommendationService(
         
         val recommendations = places.map { place ->
             val mbtiDescription = if (user.mbti != null) {
-                placeMbtiDescriptionRepository.findByPlaceIdAndMbti(place.id, user.mbti)?.description
+                placeMbtiDescriptionRepository.findByPlaceIdAndMbti(place.id!!, user.mbti)?.description
             } else null
             
             val isBookmarked = bookmarkRepository.existsByUserAndPlace(user, place)
@@ -443,9 +443,9 @@ class EnhancedRecommendationService(
             EnhancedPlaceRecommendation(
                 id = place.id.toString(),
                 title = place.title,
-                rating = place.rating,
+                rating = place.rating.toDouble(),
                 reviewCount = place.reviewCount,
-                location = place.location,
+                location = place.location ?: "",
                 image = place.imageUrl,
                 tags = place.tags,
                 description = mbtiDescription ?: place.description,
@@ -455,7 +455,7 @@ class EnhancedRecommendationService(
                     bus = place.transportationBusTime
                 ),
                 isBookmarked = isBookmarked,
-                recommendationScore = BigDecimal(place.rating ?: 0.0).setScale(4, RoundingMode.HALF_UP),
+                recommendationScore = place.rating.setScale(4, RoundingMode.HALF_UP),
                 recommendationReasons = listOf("High-rated popular place"),
                 category = place.category
             )

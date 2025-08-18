@@ -430,37 +430,3 @@ data class PlaceVectorMatch(
     fun getSimilarityScore(): Double = similarity.getWeightedSimilarityAsDouble()
 }
 
-/**
- * Repository interfaces for vector operations
- */
-interface UserPreferenceVectorRepository : org.springframework.data.jpa.repository.JpaRepository<UserPreferenceVector, Long> {
-    fun findByUserId(userId: Long): UserPreferenceVector?
-    fun deleteByUserId(userId: Long)
-    fun findByUserIdIn(userIds: List<Long>): List<UserPreferenceVector>
-}
-
-interface PlaceDescriptionVectorRepository : org.springframework.data.jpa.repository.JpaRepository<PlaceDescriptionVector, Long> {
-    fun findByPlaceId(placeId: Long): PlaceDescriptionVector?
-    fun deleteByPlaceId(placeId: Long)
-    fun findByPlaceIdIn(placeIds: List<Long>): List<PlaceDescriptionVector>
-    
-    @org.springframework.data.jpa.repository.Query("SELECT pdv FROM PlaceDescriptionVector pdv WHERE pdv.place.shouldRecheckRating = false")
-    fun findAllActive(): List<PlaceDescriptionVector>
-}
-
-interface VectorSimilarityRepository : org.springframework.data.jpa.repository.JpaRepository<VectorSimilarity, VectorSimilarityId> {
-    fun findByUserIdAndPlaceId(userId: Long, placeId: Long): VectorSimilarity?
-    fun findByUserIdOrderByWeightedSimilarityDesc(userId: Long, pageable: Pageable): List<VectorSimilarity>
-    fun deleteByUserId(userId: Long)
-    fun deleteByPlaceId(placeId: Long)
-    
-    @org.springframework.data.jpa.repository.Modifying
-    @org.springframework.data.jpa.repository.Query("DELETE FROM VectorSimilarity vs WHERE vs.calculatedAt < :cutoffDate")
-    fun deleteOlderThan(cutoffDate: OffsetDateTime): Int
-    
-    @org.springframework.data.jpa.repository.Query(
-        "SELECT vs FROM VectorSimilarity vs WHERE vs.userId = :userId " +
-        "AND vs.weightedSimilarity >= :minThreshold ORDER BY vs.weightedSimilarity DESC"
-    )
-    fun findTopSimilarPlaces(userId: Long, minThreshold: Double, pageable: Pageable): List<VectorSimilarity>
-}

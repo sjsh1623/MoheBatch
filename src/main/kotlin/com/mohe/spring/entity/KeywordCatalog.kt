@@ -19,9 +19,8 @@ data class KeywordCatalog(
     @Column(name = "category", nullable = false, length = 50)
     val category: String,
     
-    @Column(name = "related_groups")
-    @Convert(converter = StringArrayConverter::class)
-    val relatedGroups: List<String> = emptyList(),
+    @Column(name = "related_groups", columnDefinition = "TEXT")
+    val relatedGroups: String = "", // Store as comma-separated string
     
     @Column(name = "vector_position", nullable = false)
     val vectorPosition: Int, // Position in the 100-dimensional vector (0-99)
@@ -31,4 +30,12 @@ data class KeywordCatalog(
     
     @Column(name = "updated_at")
     val updatedAt: LocalDateTime = LocalDateTime.now()
-)
+) {
+    /**
+     * Get related groups as a list
+     */
+    fun getRelatedGroupsList(): List<String> {
+        return if (relatedGroups.isBlank()) emptyList() 
+               else relatedGroups.split(",").map { it.trim() }
+    }
+}

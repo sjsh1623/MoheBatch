@@ -25,7 +25,7 @@ spring:
     
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: none
     show-sql: false
     properties:
       hibernate:
@@ -66,8 +66,11 @@ google:
 
 # Ollama Configuration
 ollama:
-  host: ${OLLAMA_HOST:http://localhost:11434}
-  model: ${OLLAMA_MODEL:llama3.1:latest}
+  host: ${OLLAMA_HOST:http://192.168.219.127:11434}
+  text:
+    model: ${OLLAMA_TEXT_MODEL:gpt-oss:20b}
+  embed:
+    model: ${OLLAMA_EMBED_MODEL:mxbai-embed-large}
   timeout: ${OLLAMA_TIMEOUT:300}
 
 # Recommendation and similarity weights

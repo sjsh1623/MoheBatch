@@ -27,7 +27,7 @@ interface KeywordCatalogRepository : JpaRepository<KeywordCatalog, Long> {
     /**
      * Find keywords that contain specific related groups
      */
-    @Query("SELECT kc FROM KeywordCatalog kc WHERE :group = ANY(kc.relatedGroups)")
+    @Query("SELECT kc FROM KeywordCatalog kc WHERE kc.relatedGroups LIKE CONCAT('%', :group, '%')")
     fun findByRelatedGroupsContaining(@Param("group") group: String): List<KeywordCatalog>
     
     /**

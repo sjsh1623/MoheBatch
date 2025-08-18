@@ -134,6 +134,28 @@ class BatchController(
             )
         }
     }
+
+    @PostMapping("/internal/cleanup")
+    @Operation(
+        summary = "데이터베이스 정리",
+        description = "오래되고 평점이 낮은 장소 데이터를 정리합니다."
+    )
+    fun cleanupDatabase(
+        httpRequest: HttpServletRequest
+    ): ResponseEntity<ApiResponse<DatabaseCleanupResponse>> {
+        return try {
+            val response = batchService.cleanupOldAndLowRatedPlaces()
+            ResponseEntity.ok(ApiResponse.success(response))
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().body(
+                ApiResponse.error(
+                    code = ErrorCode.INTERNAL_SERVER_ERROR,
+                    message = "데이터베이스 정리 중 오류가 발생했습니다: ${e.message}",
+                    path = httpRequest.requestURI
+                )
+            )
+        }
+    }
 }
 
 // DTOs for batch processing
@@ -204,7 +226,8 @@ data class InternalPlaceIngestRequest(
     val imageUrl: String?,
     val sourceFlags: Map<String, Any>,
     val naverRawData: String, // JSON string
-    val googleRawData: String? // JSON string
+    val googleRawData: String?, // JSON string
+    val keywordVector: List<Double> = emptyList() // Embedding vector from Ollama
 )
 
 data class InternalPlaceIngestResponse(
@@ -215,4 +238,9 @@ data class InternalPlaceIngestResponse(
     val errorCount: Int,
     val keywordGeneratedCount: Int,
     val errors: List<String>
+)
+
+data class DatabaseCleanupResponse(
+    val removedCount: Int,
+    val messages: List<String>
 )

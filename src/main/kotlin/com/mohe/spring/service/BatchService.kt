@@ -299,28 +299,17 @@ class BatchService(
     }
     
     private fun createPlaceFromEnrichedData(placeData: InternalPlaceIngestRequest): Place {
+        // Create minimal Place entity that should definitely work
         return Place(
             name = placeData.name,
             title = placeData.name,
             address = placeData.address,
-            roadAddress = placeData.roadAddress,
-            latitude = placeData.latitude,
-            longitude = placeData.longitude,
+            naverPlaceId = placeData.naverPlaceId,
             category = placeData.category,
             description = placeData.description,
-            imageUrl = placeData.imageUrl,
-            rating = placeData.rating?.let { BigDecimal(it.toString()) } ?: BigDecimal.ZERO,
-            naverPlaceId = placeData.naverPlaceId,
-            googlePlaceId = placeData.googlePlaceId,
-            phone = placeData.phone,
-            websiteUrl = placeData.websiteUrl,
-            openingHours = placeData.openingHours?.let { objectMapper.readTree(it) },
-            types = placeData.types.toTypedArray(),
-            userRatingsTotal = placeData.userRatingsTotal,
-            priceLevel = placeData.priceLevel?.toShort(),
-            sourceFlags = objectMapper.valueToTree(placeData.sourceFlags),
-            createdAt = OffsetDateTime.now(),
-            updatedAt = LocalDateTime.now()
+            latitude = placeData.latitude,
+            longitude = placeData.longitude,
+            rating = placeData.rating?.let { BigDecimal(it.toString()) } ?: BigDecimal.ZERO
         )
     }
     
@@ -341,12 +330,19 @@ class BatchService(
             phone = placeData.phone ?: existing.phone,
             websiteUrl = placeData.websiteUrl ?: existing.websiteUrl,
             openingHours = placeData.openingHours?.let { objectMapper.readTree(it) } ?: existing.openingHours,
-            types = if (placeData.types.isNotEmpty()) placeData.types.toTypedArray() else existing.types,
+            types = if (placeData.types.isNotEmpty()) placeData.types else existing.types,
             userRatingsTotal = placeData.userRatingsTotal ?: existing.userRatingsTotal,
             priceLevel = placeData.priceLevel?.toShort() ?: existing.priceLevel,
             sourceFlags = objectMapper.valueToTree(placeData.sourceFlags),
+            keywordVector = formatVectorForDatabase(placeData.keywordVector),
             updatedAt = LocalDateTime.now()
         )
+    }
+    
+    private fun formatVectorForDatabase(vector: List<Double>): String? {
+        return if (vector.isNotEmpty()) {
+            "[${vector.joinToString(",")}]"
+        } else null
     }
     
     private fun storeExternalRawData(placeId: Long, placeData: InternalPlaceIngestRequest) {
@@ -543,6 +539,47 @@ class BatchService(
         require(userData.status.uppercase() in validStatuses) { 
             "Status must be one of: ${validStatuses.joinToString(", ")}" 
         }
+    }
+
+    fun cleanupOldAndLowRatedPlaces(): DatabaseCleanupResponse {
+        logger.info("Starting database cleanup of old and low-rated places")
+        
+        val messages = mutableListOf<String>()
+        var removedCount = 0
+        
+        try {
+            // Delete places that are old (>6 months) AND have low rating (<3.0)
+            val oldDate = LocalDateTime.now().minusMonths(6)
+            val lowRatingThreshold = BigDecimal("3.0")
+            
+            val oldLowRatedPlaces = placeRepository.findOldLowRatedPlaces(oldDate, lowRatingThreshold)
+            
+            if (oldLowRatedPlaces.isNotEmpty()) {
+                placeRepository.deleteAll(oldLowRatedPlaces)
+                removedCount = oldLowRatedPlaces.size
+                messages.add("Removed $removedCount old places with rating < $lowRatingThreshold")
+                logger.info("Removed $removedCount old low-rated places")
+            } else {
+                messages.add("No old low-rated places found to remove")
+                logger.info("No old low-rated places found for cleanup")
+            }
+            
+            // Optional: Clean up places without proper coordinates
+            val placesWithoutCoordinates = placeRepository.findPlacesWithoutCoordinates()
+            if (placesWithoutCoordinates.isNotEmpty()) {
+                placeRepository.deleteAll(placesWithoutCoordinates)
+                val coordCleanupCount = placesWithoutCoordinates.size
+                removedCount += coordCleanupCount
+                messages.add("Removed $coordCleanupCount places without valid coordinates")
+                logger.info("Removed $coordCleanupCount places without coordinates")
+            }
+            
+        } catch (ex: Exception) {
+            logger.error("Error during database cleanup: ${ex.message}", ex)
+            messages.add("Cleanup error: ${ex.message}")
+        }
+        
+        return DatabaseCleanupResponse(removedCount, messages)
     }
 
     private enum class ProcessResult {
