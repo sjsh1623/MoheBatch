@@ -85,7 +85,8 @@ class MoheSpringApiWriter(
             imageUrl = processedPlace.imageUrl,
             sourceFlags = processedPlace.sourceFlags,
             naverRawData = processedPlace.naverRawData,
-            googleRawData = processedPlace.googleRawData
+            googleRawData = processedPlace.googleRawData,
+            keywordVector = processedPlace.keywordVector
         )
     }
 
@@ -154,7 +155,8 @@ data class InternalPlaceIngestRequest(
     val imageUrl: String?,
     val sourceFlags: Map<String, Any>,
     val naverRawData: String, // JSON string
-    val googleRawData: String? // JSON string
+    val googleRawData: String?, // JSON string
+    val keywordVector: List<Double> = emptyList() // Embedding vector from Ollama
 )
 
 data class InternalApiResponse(

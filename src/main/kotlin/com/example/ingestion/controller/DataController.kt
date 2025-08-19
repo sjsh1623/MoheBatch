@@ -15,6 +15,7 @@ import org.springframework.batch.core.Job
 import org.springframework.batch.core.JobParameters
 import org.springframework.batch.core.JobParametersBuilder
 import org.springframework.batch.core.launch.JobLauncher
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.format.annotation.DateTimeFormat
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -27,7 +28,7 @@ import java.time.OffsetDateTime
 class DataController(
     private val dataService: DataService,
     private val jobLauncher: JobLauncher,
-    private val dataIngestionJob: Job
+    @Qualifier("regionalPlaceIngestionJob") private val regionalPlaceIngestionJob: Job
 ) {
 
     private val logger = LoggerFactory.getLogger(DataController::class.java)
@@ -222,7 +223,7 @@ class DataController(
                 .addLong("timestamp", System.currentTimeMillis())
                 .addString("forceRestart", forceRestart.toString())
             
-            val jobExecution = jobLauncher.run(dataIngestionJob, jobParametersBuilder.toJobParameters())
+            val jobExecution = jobLauncher.run(regionalPlaceIngestionJob, jobParametersBuilder.toJobParameters())
             
             val response = mapOf(
                 "message" to "Batch job triggered successfully",

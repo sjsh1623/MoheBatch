@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component
 )
 class SchedulingConfiguration(
     private val jobLauncher: JobLauncher,
-    private val dataIngestionJob: Job
+    private val naverGooglePlaceIngestionJob: Job
 ) {
 
     private val logger = LoggerFactory.getLogger(SchedulingConfiguration::class.java)
@@ -32,7 +32,7 @@ class SchedulingConfiguration(
                 .addString("scheduled", "true")
                 .toJobParameters()
 
-            val jobExecution = jobLauncher.run(dataIngestionJob, jobParameters)
+            val jobExecution = jobLauncher.run(naverGooglePlaceIngestionJob, jobParameters)
             
             logger.info("Scheduled job completed with status: {}, execution id: {}", 
                 jobExecution.status, jobExecution.id)

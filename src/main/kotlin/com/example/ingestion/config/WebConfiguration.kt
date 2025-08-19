@@ -44,6 +44,26 @@ class WebConfiguration(
             .build()
     }
 
+    @Bean("externalApiWebClient")
+    fun externalApiWebClient(): WebClient {
+        logger.info("Configuring external API WebClient without base URL, timeout: ${timeoutSeconds}s")
+        
+        val httpClient = HttpClient.create()
+            .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (timeoutSeconds * 1000).toInt())
+            .responseTimeout(Duration.ofSeconds(timeoutSeconds))
+            .doOnConnected { conn ->
+                conn.addHandlerLast(ReadTimeoutHandler(timeoutSeconds, TimeUnit.SECONDS))
+                    .addHandlerLast(WriteTimeoutHandler(timeoutSeconds, TimeUnit.SECONDS))
+            }
+
+        return WebClient.builder()
+            .clientConnector(ReactorClientHttpConnector(httpClient))
+            .filter(logRequest())
+            .filter(logResponse())
+            .filter(errorHandler())
+            .build()
+    }
+
     private fun logRequest(): ExchangeFilterFunction {
         return ExchangeFilterFunction.ofRequestProcessor { clientRequest ->
             logger.debug("API Request: {} {}", clientRequest.method(), clientRequest.url())

@@ -22,5 +22,6 @@ data class ProcessedPlace(
     val imageUrl: String?,
     val sourceFlags: Map<String, Any>,
     val naverRawData: String, // JSON string
-    val googleRawData: String? // JSON string
+    val googleRawData: String?, // JSON string
+    val keywordVector: List<Double> = emptyList() // Embedding vector from Ollama
 )

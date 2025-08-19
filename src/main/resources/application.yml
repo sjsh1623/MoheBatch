@@ -18,6 +18,7 @@ spring:
       idle-timeout: ${DB_IDLE_TIMEOUT:300000}
       max-lifetime: ${DB_MAX_LIFETIME:1200000}
       leak-detection-threshold: ${DB_LEAK_DETECTION_THRESHOLD:60000}
+      auto-commit: false
 
   jpa:
     hibernate:
@@ -33,6 +34,9 @@ spring:
           order_updates: true
         connection:
           provider_disables_autocommit: true
+          isolation: 2  # READ_COMMITTED
+        temp:
+          use_jdbc_metadata_defaults: false
 
   flyway:
     enabled: true
@@ -51,6 +55,9 @@ spring:
 # Application-specific configuration
 app:
   external:
+    api:
+      base-url: ${EXTERNAL_API_BASE_URL:http://mock-api:8080}  # For backward compatibility
+      timeout: ${EXTERNAL_API_TIMEOUT:30}
     naver:
       base-url: https://openapi.naver.com/v1/search/local.json
       client-id: ${NAVER_CLIENT_ID:}

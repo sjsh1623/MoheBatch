@@ -196,7 +196,7 @@ class DataService(
             "active_count" to activeCount,
             "inactive_count" to inactiveCount,
             "pending_count" to pendingCount,
-            "latest_update_timestamp" to latestUpdateTimestamp
+            "latest_update_timestamp" to (latestUpdateTimestamp ?: "N/A")
         )
     }
 
