@@ -3,6 +3,7 @@ package com.example.ingestion.batch.processor
 import com.example.ingestion.batch.reader.EnrichedPlace
 import com.example.ingestion.dto.GoogleOpeningHours
 import com.example.ingestion.dto.ProcessedPlace
+// Removed dependency on MoheSpring service - using local implementation
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.micrometer.core.instrument.MeterRegistry
@@ -26,7 +27,7 @@ class PlaceEnrichmentProcessor(
                 naverPlaceId = generateNaverPlaceId(item),
                 googlePlaceId = item.googlePlace?.placeId,
                 name = item.naverPlace.cleanTitle,
-                description = buildDescription(item),
+                description = buildEnhancedDescription(item),
                 category = determineCategory(item),
                 address = item.naverPlace.address,
                 roadAddress = item.naverPlace.roadAddress,
@@ -61,7 +62,26 @@ class PlaceEnrichmentProcessor(
         return "nv_${item.naverPlace.cleanTitle.hashCode().toString().replace("-", "n")}_${item.naverPlace.mapX}_${item.naverPlace.mapY}"
     }
 
-    private fun buildDescription(item: EnrichedPlace): String {
+    /**
+     * 향상된 설명 생성 - Local implementation instead of external service dependency
+     */
+    private fun buildEnhancedDescription(item: EnrichedPlace): String {
+        return try {
+            val description = buildFallbackDescription(item)
+            logger.debug("Generated description for ${item.naverPlace.cleanTitle}")
+            meterRegistry.counter("description_generation_success").increment()
+            description
+        } catch (e: Exception) {
+            logger.warn("Failed to generate description for ${item.naverPlace.cleanTitle}: ${e.message}")
+            meterRegistry.counter("description_generation_failed").increment()
+            "${item.naverPlace.category} 카테고리의 장소입니다."
+        }
+    }
+
+    /**
+     * 대체 설명 생성 (enhanced description 생성 실패 시 사용)
+     */
+    private fun buildFallbackDescription(item: EnrichedPlace): String {
         val parts = mutableListOf<String>()
         
         // Naver description
@@ -70,37 +90,23 @@ class PlaceEnrichmentProcessor(
         }
         
         // Google reviews for description
-        item.googlePlace?.reviews?.take(2)?.forEach { review ->
+        item.googlePlace?.reviews?.take(1)?.forEach { review ->
             if (review.text.length > 50 && review.rating >= 4) {
-                parts.add(review.text.take(200) + if (review.text.length > 200) "..." else "")
+                parts.add(review.text.take(150) + if (review.text.length > 150) "..." else "")
             }
         }
         
-        // Fallback description based on category and location
+        // Simple fallback based on category
         if (parts.isEmpty()) {
-            val locationDesc = when {
-                item.naverPlace.address.contains("강남") -> "강남구에 위치한"
-                item.naverPlace.address.contains("홍대") || item.naverPlace.address.contains("마포") -> "홍대 지역의"
-                item.naverPlace.address.contains("성수") -> "성수동의 트렌디한"
-                item.naverPlace.address.contains("이태원") -> "이태원의 국제적인"
-                item.naverPlace.address.contains("명동") || item.naverPlace.address.contains("중구") -> "명동 중심가의"
-                item.naverPlace.address.contains("종로") -> "종로구의 전통적인"
-                else -> "서울 지역의"
-            }
-            
             val categoryDesc = when {
-                item.naverPlace.category.contains("카페") -> "아늑한 카페"
-                item.naverPlace.category.contains("음식") || item.naverPlace.category.contains("레스토랑") -> "맛있는 음식점"
-                item.naverPlace.category.contains("펍") || item.naverPlace.category.contains("바") -> "분위기 좋은 주점"
-                item.naverPlace.category.contains("베이커리") -> "신선한 베이커리"
-                item.naverPlace.category.contains("문화") || item.naverPlace.category.contains("박물관") -> "문화 공간"
-                else -> "특별한 장소"
+                item.naverPlace.category.contains("카페") -> "커피와 디저트를 즐길 수 있는 카페입니다."
+                item.naverPlace.category.contains("음식") -> "맛있는 음식을 제공하는 레스토랑입니다."
+                else -> "${item.naverPlace.category} 카테고리의 장소입니다."
             }
-            
-            parts.add("$locationDesc $categoryDesc 입니다.")
+            parts.add(categoryDesc)
         }
         
-        return parts.joinToString(" ").take(500)
+        return parts.joinToString(" ").take(400)
     }
 
     private fun determineCategory(item: EnrichedPlace): String {
@@ -146,7 +152,9 @@ class PlaceEnrichmentProcessor(
             "hasRating" to (item.googlePlace?.rating != null),
             "searchQuery" to item.searchContext.query,
             "searchArea" to "${item.searchContext.coordinate.lat},${item.searchContext.coordinate.lng}",
-            "processedAt" to LocalDateTime.now().toString()
+            "processedAt" to LocalDateTime.now().toString(),
+            "enhancedDescriptionEnabled" to true,
+            "processingVersion" to "v2.0"
         )
     }
 }

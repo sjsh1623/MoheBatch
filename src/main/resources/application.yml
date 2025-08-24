@@ -56,14 +56,14 @@ spring:
 app:
   external:
     api:
-      base-url: ${EXTERNAL_API_BASE_URL:http://mock-api:8080}  # For backward compatibility
+      base-url: ${EXTERNAL_API_BASE_URL:http://mock-api:8080}
       timeout: ${EXTERNAL_API_TIMEOUT:30}
     naver:
       base-url: https://openapi.naver.com/v1/search/local.json
       client-id: ${NAVER_CLIENT_ID:}
       client-secret: ${NAVER_CLIENT_SECRET:}
-      page-size: ${NAVER_PAGE_SIZE:5}
-      max-pages: ${NAVER_MAX_PAGES:200}
+      page-size: ${NAVER_PAGE_SIZE:100}
+      max-pages: ${NAVER_MAX_PAGES:20}
       timeout: ${NAVER_TIMEOUT:10}
       queries: 
         - "카페"
@@ -90,6 +90,13 @@ app:
         - { lat: 37.5502, lng: 126.9224, radius: 5000 }  # 마포구 (홍대)
         - { lat: 37.5465, lng: 127.0949, radius: 5000 }  # 광진구 (건대)
         - { lat: 37.5814, lng: 127.0097, radius: 5000 }  # 종로구 (인사동)
+        - { lat: 37.5267, lng: 126.8956, radius: 5000 }  # 영등포구
+        - { lat: 37.5326, lng: 126.9026, radius: 5000 }  # 마포구 (여의도)
+        - { lat: 37.5797, lng: 126.9425, radius: 5000 }  # 서대문구
+        - { lat: 37.6015, lng: 126.9298, radius: 5000 }  # 은평구
+        - { lat: 37.5423, lng: 127.1000, radius: 5000 }  # 송파구
+        - { lat: 37.5146, lng: 127.1060, radius: 5000 }  # 강동구
+        - { lat: 37.4783, lng: 126.9516, radius: 5000 }  # 관악구
         
     google:
       base-url: https://maps.googleapis.com/maps/api/place
@@ -223,6 +230,8 @@ app:
     scheduling:
       enabled: ${APP_BATCH_SCHEDULING_ENABLED:true}
       cron: ${APP_BATCH_SCHEDULING_CRON:0 */30 * * * ?}
+    continuous:
+      enabled: ${APP_BATCH_CONTINUOUS_ENABLED:false}
 
 logging:
   level:

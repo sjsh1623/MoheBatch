@@ -26,7 +26,8 @@ class RegionalPlaceEnrichmentProcessor(
     @Value("\${OLLAMA_HOST:http://localhost:11434}") private val ollamaHost: String,
     @Value("\${OLLAMA_TEXT_MODEL:gpt-oss:20b}") private val textModel: String,
     @Value("\${OLLAMA_EMBEDDING_MODEL:mxbai-embed-large:latest}") private val embeddingModel: String,
-    @Value("\${OLLAMA_TIMEOUT:120}") private val ollamaTimeout: Int
+    @Value("\${OLLAMA_TIMEOUT:120}") private val ollamaTimeout: Int,
+    @Value("\${app.external.google.api-key}") private val googleApiKey: String
 ) : ItemProcessor<EnrichedPlace, ProcessedPlace> {
 
     private val logger = LoggerFactory.getLogger(RegionalPlaceEnrichmentProcessor::class.java)
@@ -66,6 +67,7 @@ class RegionalPlaceEnrichmentProcessor(
                 types = combineTypes(item),
                 openingHours = item.googlePlace?.openingHours?.let { objectMapper.writeValueAsString(it) },
                 imageUrl = item.googlePhotoUrl ?: extractImageFromNaver(item.naverPlace),
+                images = collectMultipleImages(item),
                 sourceFlags = mapOf(
                     "hasNaverData" to true,
                     "hasGoogleData" to (item.googlePlace != null),
@@ -185,27 +187,27 @@ class RegionalPlaceEnrichmentProcessor(
     private fun buildDescriptionPrompt(item: EnrichedPlace, contextInfo: String): String {
         val placeName = item.naverPlace.cleanTitle
         val category = item.naverPlace.category
-        val address = item.naverPlace.address
         val originalDesc = item.naverPlace.description
         
         return """
-한국의 장소에 대한 매력적이고 정보가 풍부한 설명을 작성해 주세요.
+장소의 분위기와 경험에 대한 생생한 설명을 작성해 주세요.
 
 장소 정보:
 - 이름: $placeName
 - 카테고리: $category  
-- 주소: $address
 - 기존 설명: $originalDesc
 - 추가 정보: $contextInfo
 
 요구사항:
 1. 200-300자 내외의 한국어 설명을 작성해 주세요
-2. 장소의 특징, 분위기, 추천 포인트를 포함해 주세요
-3. 관광객과 현지인 모두에게 유용한 정보를 제공해 주세요
-4. 정확하고 매력적인 표현을 사용해 주세요
-5. 홍보성 문구보다는 실질적인 정보를 중심으로 작성해 주세요
+2. 장소의 분위기, 음향, 조명, 인테리어 스타일을 생생하게 묘사해 주세요
+3. 사람들의 활동 양상과 붐비는 정도를 설명해 주세요 (조용한지, 활기찬지, 대화하는 소리, 음악 등)
+4. 방문객이 느낄 수 있는 감정과 경험을 중심으로 작성해 주세요
+5. 주소나 구체적인 위치 정보는 절대 포함하지 마세요
+6. 시간대별 분위기 차이가 있다면 언급해 주세요
+7. 공간의 크기감과 좌석 배치, 프라이빗함 정도를 설명해 주세요
 
-설명:
+분위기 중심 설명:
         """.trimIndent()
     }
 
@@ -296,6 +298,45 @@ class RegionalPlaceEnrichmentProcessor(
     private fun extractImageFromNaver(naverPlace: NaverPlaceItem): String? {
         // Extract image URL from Naver place data
         return naverPlace.link?.takeIf { it.isNotBlank() }
+    }
+
+    private fun collectMultipleImages(item: EnrichedPlace): List<String> {
+        val imageUrls = mutableListOf<String>()
+        
+        try {
+            // Collect multiple images from Google Places API
+            item.googlePlace?.photos?.let { photos ->
+                // Take 3-10 photos (user requested minimum 3, maximum 10)
+                val photoCount = minOf(10, maxOf(3, photos.size))
+                
+                logger.debug("Collecting $photoCount images from ${photos.size} available photos for ${item.naverPlace.cleanTitle}")
+                
+                photos.take(photoCount).forEach { photo ->
+                    try {
+                        val photoUrl = "https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${photo.photoReference}&key=${googleApiKey}"
+                        imageUrls.add(photoUrl)
+                        logger.debug("Added photo URL for ${item.naverPlace.cleanTitle}: $photoUrl")
+                    } catch (e: Exception) {
+                        logger.warn("Failed to build photo URL for ${item.naverPlace.cleanTitle}: ${e.message}")
+                    }
+                }
+            }
+            
+            // If we don't have enough Google Photos, try to add Naver image
+            if (imageUrls.size < 3) {
+                extractImageFromNaver(item.naverPlace)?.let { naverImage ->
+                    imageUrls.add(naverImage)
+                    logger.debug("Added Naver image to reach minimum count: $naverImage")
+                }
+            }
+            
+            logger.debug("Collected ${imageUrls.size} images for ${item.naverPlace.cleanTitle}")
+            
+        } catch (e: Exception) {
+            logger.warn("Failed to collect multiple images for ${item.naverPlace.cleanTitle}: ${e.message}")
+        }
+        
+        return imageUrls.distinct() // Remove duplicates
     }
 
     private fun parseNaverRating(naverPlace: NaverPlaceItem): Double? {

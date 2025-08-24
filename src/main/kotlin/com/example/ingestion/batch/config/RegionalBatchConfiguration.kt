@@ -4,6 +4,7 @@ import com.example.ingestion.batch.listener.JobExecutionListener
 import com.example.ingestion.batch.processor.RegionalPlaceEnrichmentProcessor
 import com.example.ingestion.batch.reader.RegionalNaverGooglePlaceReader
 import com.example.ingestion.batch.reader.EnrichedPlace
+import com.example.ingestion.config.ContinuousBatchService
 import com.example.ingestion.dto.ProcessedPlace
 import com.example.ingestion.batch.writer.MoheSpringApiWriter
 import org.slf4j.LoggerFactory
@@ -25,8 +26,8 @@ import java.net.SocketTimeoutException
 @Configuration
 @EnableRetry
 class RegionalBatchConfiguration(
-    @Value("\${app.batch.chunk-size:100}") private val chunkSize: Int,
-    @Value("\${app.batch.skip-limit:50}") private val skipLimit: Int
+    @Value("\${app.batch.chunk-size:500}") private val chunkSize: Int,
+    @Value("\${app.batch.skip-limit:100}") private val skipLimit: Int
 ) {
 
     private val logger = LoggerFactory.getLogger(RegionalBatchConfiguration::class.java)
@@ -35,11 +36,20 @@ class RegionalBatchConfiguration(
     fun regionalPlaceIngestionJob(
         jobRepository: JobRepository,
         regionalPlaceStep: Step,
-        jobExecutionListener: JobExecutionListener
+        jobExecutionListener: JobExecutionListener,
+        continuousBatchService: ContinuousBatchService?
     ): Job {
-        return JobBuilder("regionalPlaceIngestionJob", jobRepository)
+        val jobBuilder = JobBuilder("regionalPlaceIngestionJob", jobRepository)
             .incrementer(RunIdIncrementer())
             .listener(jobExecutionListener)
+            
+        // Add continuous batch service as listener if available
+        continuousBatchService?.let {
+            jobBuilder.listener(it)
+            logger.info("Added ContinuousBatchService as job listener")
+        }
+            
+        return jobBuilder
             .start(regionalPlaceStep)
             .build()
     }

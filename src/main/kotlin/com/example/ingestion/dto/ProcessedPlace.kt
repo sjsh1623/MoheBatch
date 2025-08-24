@@ -20,6 +20,7 @@ data class ProcessedPlace(
     val types: List<String>,
     val openingHours: String?, // JSON string
     val imageUrl: String?,
+    val images: List<String> = emptyList(), // Multiple image URLs (3-10 images)
     val sourceFlags: Map<String, Any>,
     val naverRawData: String, // JSON string
     val googleRawData: String?, // JSON string

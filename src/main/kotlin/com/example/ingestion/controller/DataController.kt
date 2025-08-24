@@ -1,9 +1,16 @@
 package com.example.ingestion.controller
 
+import com.example.ingestion.config.ContinuousBatchService
 import com.example.ingestion.dto.DataReadDto
 import com.example.ingestion.dto.DataWriteDto
 import com.example.ingestion.dto.PagedDataResponse
 import com.example.ingestion.service.DataService
+import com.example.ingestion.batch.processor.RegionalPlaceEnrichmentProcessor
+import com.example.ingestion.batch.reader.EnrichedPlace
+import com.example.ingestion.dto.NaverPlaceItem
+import com.example.ingestion.batch.reader.PlaceSearchContext
+import com.example.ingestion.batch.reader.SeoulCoordinate
+import java.math.BigDecimal
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -28,7 +35,9 @@ import java.time.OffsetDateTime
 class DataController(
     private val dataService: DataService,
     private val jobLauncher: JobLauncher,
-    @Qualifier("regionalPlaceIngestionJob") private val regionalPlaceIngestionJob: Job
+    @Qualifier("regionalPlaceIngestionJob") private val regionalPlaceIngestionJob: Job,
+    private val continuousBatchService: ContinuousBatchService?,
+    private val regionalPlaceEnrichmentProcessor: RegionalPlaceEnrichmentProcessor
 ) {
 
     private val logger = LoggerFactory.getLogger(DataController::class.java)
@@ -242,6 +251,165 @@ class DataController(
             )
             
             ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse)
+        }
+    }
+
+    @PostMapping("/batch/continuous/start")
+    @Operation(
+        summary = "Start continuous batch processing",
+        description = "Start continuous batch processing - each batch will trigger the next one immediately after completion"
+    )
+    @ApiResponse(responseCode = "200", description = "Continuous processing started")
+    @ApiResponse(responseCode = "404", description = "Continuous batch service not available")
+    fun startContinuousBatch(): ResponseEntity<Map<String, Any>> {
+        logger.info("POST /api/data/batch/continuous/start")
+        
+        return if (continuousBatchService != null) {
+            continuousBatchService.startContinuousProcessing()
+            
+            val response = mapOf(
+                "message" to "Continuous batch processing started - no time limits",
+                "mode" to "continuous",
+                "description" to "Each batch will trigger the next one immediately after completion"
+            )
+            ResponseEntity.ok(response)
+        } else {
+            val response = mapOf(
+                "error" to "Continuous batch service not available",
+                "message" to "Enable with app.batch.continuous.enabled=true"
+            )
+            ResponseEntity.status(HttpStatus.NOT_FOUND).body(response)
+        }
+    }
+
+    @PostMapping("/batch/continuous/stop")
+    @Operation(
+        summary = "Stop continuous batch processing",
+        description = "Stop the continuous batch processing loop"
+    )
+    @ApiResponse(responseCode = "200", description = "Continuous processing stopped")
+    @ApiResponse(responseCode = "404", description = "Continuous batch service not available")
+    fun stopContinuousBatch(): ResponseEntity<Map<String, Any>> {
+        logger.info("POST /api/data/batch/continuous/stop")
+        
+        return if (continuousBatchService != null) {
+            continuousBatchService.stopContinuousProcessing()
+            
+            val response = mapOf(
+                "message" to "Continuous batch processing stopped",
+                "mode" to "stopped"
+            )
+            ResponseEntity.ok(response)
+        } else {
+            val response = mapOf(
+                "error" to "Continuous batch service not available",
+                "message" to "Enable with app.batch.continuous.enabled=true"
+            )
+            ResponseEntity.status(HttpStatus.NOT_FOUND).body(response)
+        }
+    }
+
+    @GetMapping("/batch/continuous/status")
+    @Operation(
+        summary = "Get continuous batch processing status",
+        description = "Get the current status of continuous batch processing"
+    )
+    @ApiResponse(responseCode = "200", description = "Status retrieved")
+    @ApiResponse(responseCode = "404", description = "Continuous batch service not available")
+    fun getContinuousBatchStatus(): ResponseEntity<Map<String, Any>> {
+        logger.info("GET /api/data/batch/continuous/status")
+        
+        return if (continuousBatchService != null) {
+            val status = continuousBatchService.getStatus()
+            ResponseEntity.ok(status)
+        } else {
+            val response = mapOf(
+                "error" to "Continuous batch service not available",
+                "message" to "Enable with app.batch.continuous.enabled=true",
+                "isRunning" to false,
+                "mode" to "disabled"
+            )
+            ResponseEntity.status(HttpStatus.NOT_FOUND).body(response)
+        }
+    }
+
+    @PostMapping("/test/ollama")
+    @Operation(
+        summary = "Test Ollama integration",
+        description = "Test Ollama text generation with mock place data"
+    )
+    @ApiResponse(responseCode = "200", description = "Ollama test completed")
+    fun testOllamaIntegration(): ResponseEntity<Map<String, Any>> {
+        logger.info("POST /api/data/test/ollama - Testing Ollama integration")
+        
+        return try {
+            // Create mock place data
+            val mockNaverPlace = NaverPlaceItem(
+                title = "스타벅스 청담점>>",
+                link = "https://store.starbucks.co.kr/",
+                category = "카페",
+                description = "넓은 공간과 편안한 좌석이 있는 커피전문점",
+                telephone = "02-1234-5678",
+                address = "서울특별시 강남구 청담동",
+                roadAddress = "서울특별시 강남구 청담동로 123",
+                mapX = "127.047308",
+                mapY = "37.525379"
+            )
+            
+            val searchContext = PlaceSearchContext(
+                query = "카페",
+                coordinate = SeoulCoordinate(
+                    lat = BigDecimal("37.525379"),
+                    lng = BigDecimal("127.047308"),
+                    radius = 1000
+                ),
+                page = 1
+            )
+            
+            val enrichedPlace = EnrichedPlace(
+                naverPlace = mockNaverPlace,
+                googlePlace = null,
+                googlePhotoUrl = null,
+                searchContext = searchContext
+            )
+            
+            // Process with Ollama
+            val startTime = System.currentTimeMillis()
+            val processedPlace = regionalPlaceEnrichmentProcessor.process(enrichedPlace)
+            val processingTime = System.currentTimeMillis() - startTime
+            
+            if (processedPlace != null) {
+                val response = mapOf(
+                    "success" to true,
+                    "message" to "Ollama integration test completed successfully",
+                    "processing_time_ms" to processingTime,
+                    "place_name" to processedPlace.name,
+                    "generated_description" to processedPlace.description,
+                    "description_length" to processedPlace.description.length,
+                    "has_keyword_vector" to processedPlace.keywordVector.isNotEmpty(),
+                    "keyword_vector_dimensions" to processedPlace.keywordVector.size,
+                    "source_flags" to processedPlace.sourceFlags
+                )
+                ResponseEntity.ok(response)
+            } else {
+                val response = mapOf(
+                    "success" to false,
+                    "message" to "Ollama processing returned null - check logs for details",
+                    "processing_time_ms" to processingTime
+                )
+                ResponseEntity.ok(response)
+            }
+        } catch (ex: Exception) {
+            logger.error("Ollama integration test failed: ${ex.message}", ex)
+            
+            val errorResponse = mapOf(
+                "success" to false,
+                "error" to "Ollama integration test failed",
+                "message" to (ex.message ?: "Unknown error"),
+                "exception_type" to ex.javaClass.simpleName
+            )
+            
+            ResponseEntity.ok(errorResponse)
         }
     }
 }

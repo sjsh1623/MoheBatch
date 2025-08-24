@@ -61,34 +61,79 @@ class RegionalNaverGooglePlaceReader(
         private const val CORRELATION_ID = "correlationId"
     }
 
+    private var readCount = 0
+
     override fun read(): EnrichedPlace? {
+        readCount++
+        logger.error("📍 CONTINUOUS READER - CALL #$readCount")
+        
         if (!initialized) {
             initialize()
             initialized = true
         }
 
-        // Return items from current batch
-        if (currentIndex < currentBatch.size) {
-            return currentBatch[currentIndex++]
+        // Make continuous API calls - collect 50 places
+        if (readCount <= 50) {
+            logger.error("📍 MAKING NAVER API CALL #$readCount")
+            return makeRealApiCall(readCount)
         }
-
-        // Check if we're done with all regions
-        if (!hasMoreData) {
-            logger.info("Completed reading all Korean regional place data. Processed ${processingState.totalProcessedPlaces} places across ${processingState.completedRegions.size} regions")
-            return null
-        }
-
-        // Fetch next batch
-        fetchNextBatch()?.let { places ->
-            currentBatch = places.toMutableList()
-            currentIndex = 0
-            return if (currentBatch.isNotEmpty()) {
-                currentIndex++
-                currentBatch[0]
-            } else null
-        }
-
+        
+        logger.error("📍 COMPLETED 50 API CALLS - FINISHED")
         return null
+    }
+    
+    private fun makeRealApiCall(callNumber: Int): EnrichedPlace? {
+        return try {
+            logger.error("📍 CALLING NAVER API - Call #$callNumber")
+            
+            // Use different coordinates and queries to get varied data
+            val seoulCoords = KoreanRegion.SEOUL.coordinates
+            val queries = listOf("카페", "레스토랑", "음식점", "베이커리", "디저트", "펜션", "관광지", "박물관", "공원", "서점")
+            
+            val coordIndex = (callNumber - 1) % seoulCoords.size
+            val queryIndex = (callNumber - 1) % queries.size
+            val page = ((callNumber - 1) / (seoulCoords.size * queries.size)) + 1
+            
+            val context = RegionalSearchContext(
+                region = KoreanRegion.SEOUL,
+                coordinate = seoulCoords[coordIndex],
+                query = queries[queryIndex],
+                page = page
+            )
+            
+            logger.error("📍 API Call: ${context.query} in ${context.coordinate.description} (page $page)")
+            
+            val naverResponse = fetchNaverPlaces(context)
+            logger.error("📍 NAVER API RETURNED ${naverResponse.items.size} places")
+            
+            if (naverResponse.items.isNotEmpty()) {
+                // Use different place from results each time
+                val placeIndex = (callNumber - 1) % naverResponse.items.size
+                val selectedPlace = naverResponse.items[placeIndex]
+                logger.error("📍 SELECTED PLACE: ${selectedPlace.cleanTitle}")
+                
+                return EnrichedPlace(
+                    naverPlace = selectedPlace,
+                    googlePlace = null,
+                    googlePhotoUrl = null,
+                    searchContext = PlaceSearchContext(
+                        context.query,
+                        SeoulCoordinate(
+                            context.coordinate.lat,
+                            context.coordinate.lng,
+                            context.coordinate.radius
+                        ),
+                        context.page
+                    )
+                )
+            } else {
+                logger.error("📍 NO PLACES FROM NAVER - trying next call")
+                return null
+            }
+        } catch (e: Exception) {
+            logger.error("📍 API ERROR: ${e.message}", e)
+            null
+        }
     }
 
     private fun initialize() {
@@ -98,15 +143,16 @@ class RegionalNaverGooglePlaceReader(
         logger.info("Initializing RegionalNaverGooglePlaceReader for comprehensive Korean coverage")
         logger.info("Processing order: ${regions.joinToString(" → ") { it.regionName }}")
         
-        // Try to resume from last processed state
-        val lastState = jobExecutionStateRepository.findByJobName(jobName)
-        if (lastState.isPresent) {
-            val state = lastState.get()
-            logger.info("Resuming from previous state: ${state.lastExecutionStatus}")
-            // Resume logic can be implemented here if needed
-        } else {
-            logger.info("Starting fresh regional processing from ${regions.first().regionName}")
-        }
+        // Force fresh start for debugging
+        logger.info("FORCE RESTARTING: Starting fresh regional processing from ${regions.first().regionName}")
+        processingState = RegionalProcessingState(regions.first())
+        hasMoreData = true
+        
+        // Debug current state
+        val firstRegion = regions.first()
+        logger.info("DEBUG: First region = ${firstRegion.regionName}, coordinates count = ${firstRegion.coordinates.size}, queries count = ${firstRegion.searchQueries.size}")
+        logger.info("DEBUG: Initial state - coordinateIndex = ${processingState.currentCoordinateIndex}, queryIndex = ${processingState.currentQueryIndex}, page = ${processingState.currentPage}")
+        logger.info("DEBUG: isCurrentRegionComplete() = ${processingState.currentCoordinateIndex >= firstRegion.coordinates.size}")
         
         meterRegistry.gauge("regional_batch_current_region", processingState.currentRegion.priority)
     }
@@ -114,9 +160,13 @@ class RegionalNaverGooglePlaceReader(
     private fun fetchNextBatch(): List<EnrichedPlace>? {
         val currentRegion = processingState.currentRegion
         
+        logger.info("DEBUG: fetchNextBatch() called - region = ${currentRegion.regionName}, coordinateIndex = ${processingState.currentCoordinateIndex}/${currentRegion.coordinates.size}")
+        
         // Check if current region is complete
         if (isCurrentRegionComplete()) {
+            logger.info("DEBUG: Current region ${currentRegion.regionName} is complete, trying to move to next region")
             if (!moveToNextRegion()) {
+                logger.info("DEBUG: No more regions available, setting hasMoreData = false")
                 hasMoreData = false
                 return null
             }
@@ -129,16 +179,20 @@ class RegionalNaverGooglePlaceReader(
             val enrichedPlaces = mutableListOf<EnrichedPlace>()
             
             // Fetch from Naver API
+            logger.warn("*** CALLING NAVER API *** region=${currentRegion.regionName}, query=${context.query}")
             val naverResponse = fetchNaverPlaces(context)
+            logger.warn("*** NAVER API RETURNED *** ${naverResponse.items.size} items")
+            
             if (naverResponse.items.isEmpty()) {
+                logger.warn("*** NO ITEMS FROM NAVER *** moving to next query")
                 moveToNextQuery()
                 return emptyList()
             }
 
-            logger.debug("Fetched ${naverResponse.items.size} places from Naver for ${currentRegion.regionName}")
+            logger.debug("Fetched ${naverResponse.items.size} places from Naver for ${currentRegion.regionName}, using top ${minOf(50, naverResponse.items.size)}")
 
-            // Enrich each Naver place with Google data
-            for (naverPlace in naverResponse.items) {
+            // Enrich each Naver place with Google data (top 50 most popular only)
+            for (naverPlace in naverResponse.items.take(50)) {
                 try {
                     val googlePlace = enrichWithGoogle(naverPlace)
                     val photoUrl = googlePlace?.photos?.firstOrNull()?.let { photo ->
@@ -183,7 +237,7 @@ class RegionalNaverGooglePlaceReader(
             enrichedPlaces
             
         } catch (ex: Exception) {
-            logger.error("Error fetching batch for ${currentRegion.regionName}: ${ex.message}", ex)
+            logger.error("DEBUG: Exception in fetchNextBatch() for ${currentRegion.regionName}: ${ex.message}", ex)
             meterRegistry.counter("regional_batch_fetch_errors", "region", currentRegion.regionName).increment()
             processingState.errors.add("${currentRegion.regionName}: ${ex.message}")
             moveToNextQuery() // Skip problematic query
@@ -270,7 +324,15 @@ class RegionalNaverGooglePlaceReader(
     )
     private fun fetchNaverPlaces(context: RegionalSearchContext): NaverLocalSearchResponse {
         return naverApiTimer.recordCallable {
-            val locationQuery = "${context.query} ${context.coordinate.description}"
+            // Clean coordinate description by removing parentheses and taking first meaningful part
+            val locationName = context.coordinate.description.split("(").first().trim()
+            val locationQuery = when {
+                context.query in listOf("레스토랑", "음식점", "한식당", "중식당", "일식당", "양식당", "치킨집") -> 
+                    "${locationName.split(" ").first()} 맛집"
+                else -> "${context.query} ${locationName}"
+            }
+            
+            logger.warn("*** CALLING NAVER API *** query='$locationQuery', display=100, page=${context.page}")
             
             externalApiWebClient.get()
                 .uri { builder ->
@@ -279,9 +341,9 @@ class RegionalNaverGooglePlaceReader(
                         .host("openapi.naver.com")
                         .path("/v1/search/local.json")
                         .queryParam("query", locationQuery)
-                        .queryParam("display", naverPageSize)
-                        .queryParam("start", (context.page - 1) * naverPageSize + 1)
-                        .queryParam("sort", "random")
+                        .queryParam("display", 100)
+                        .queryParam("start", (context.page - 1) * 100 + 1)
+                        .queryParam("sort", "comment")
                         .build()
                 }
                 .header("X-Naver-Client-Id", naverClientId)
@@ -293,11 +355,12 @@ class RegionalNaverGooglePlaceReader(
                         .maxBackoff(Duration.ofSeconds(10))
                         .filter { it is WebClientResponseException && it.statusCode.is5xxServerError }
                 )
-                .doOnSuccess {
+                .doOnSuccess { response ->
+                    logger.info("DEBUG: Naver API success for ${context.region.regionName} - query='$locationQuery': got ${response.items.size} items")
                     meterRegistry.counter("regional_naver_api_success", "region", context.region.regionName).increment()
                 }
                 .doOnError { error ->
-                    logger.error("Naver API error for ${context.region.regionName} - ${context.query}: ${error.message}")
+                    logger.error("DEBUG: Naver API error for ${context.region.regionName} - query='$locationQuery': ${error.javaClass.simpleName} - ${error.message}", error)
                     meterRegistry.counter("regional_naver_api_error", "region", context.region.regionName).increment()
                 }
                 .block(Duration.ofSeconds(naverTimeout.toLong())) ?: NaverLocalSearchResponse(0, 0, 0, emptyList())
