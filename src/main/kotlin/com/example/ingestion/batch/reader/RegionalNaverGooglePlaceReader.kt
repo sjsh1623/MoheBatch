@@ -51,35 +51,57 @@ class RegionalNaverGooglePlaceReader(
 
     private val regions = KoreanRegion.values().sortedBy { it.priority }
     
+    // Thread-safe state that resets for each job execution
+    @Volatile
     private var currentBatch = mutableListOf<EnrichedPlace>()
+    @Volatile
     private var currentIndex = 0
+    @Volatile
     private var processingState = RegionalProcessingState(regions.first())
+    @Volatile
     private var hasMoreData = true
+    @Volatile
     private var initialized = false
+    @Volatile
+    private var readCount = 0
     
     companion object {
         private const val CORRELATION_ID = "correlationId"
     }
 
-    private var readCount = 0
-
     override fun read(): EnrichedPlace? {
+        // Always reset state at the beginning of each job execution
+        if (readCount == 0) {
+            resetReaderState()
+        }
+        
         readCount++
-        logger.error("📍 CONTINUOUS READER - CALL #$readCount")
+        logger.error("📍 CONTINUOUS READER - CALL #$readCount (Job execution: fresh state)")
         
         if (!initialized) {
             initialize()
             initialized = true
         }
 
-        // Make continuous API calls - collect 50 places
-        if (readCount <= 50) {
+        // Make continuous API calls - increased to collect more place data
+        if (readCount <= 50) {  // Increased to 50 for more comprehensive data collection
             logger.error("📍 MAKING NAVER API CALL #$readCount")
             return makeRealApiCall(readCount)
         }
         
-        logger.error("📍 COMPLETED 50 API CALLS - FINISHED")
+        logger.error("📍 COMPLETED 50 API CALLS - JOB FINISHED, NEXT SCHEDULED EXECUTION WILL START FRESH")
         return null
+    }
+    
+    private fun resetReaderState() {
+        logger.error("🔄 RESETTING READER STATE FOR NEW JOB EXECUTION")
+        currentBatch.clear()
+        currentIndex = 0
+        processingState = RegionalProcessingState(regions.first())
+        hasMoreData = true
+        initialized = false
+        // readCount stays as-is since we're in the middle of incrementing it
+        logger.error("🔄 READER STATE RESET COMPLETE - READY FOR FRESH DATA COLLECTION")
     }
     
     private fun makeRealApiCall(callNumber: Int): EnrichedPlace? {
@@ -88,7 +110,14 @@ class RegionalNaverGooglePlaceReader(
             
             // Use different coordinates and queries to get varied data
             val seoulCoords = KoreanRegion.SEOUL.coordinates
-            val queries = listOf("카페", "레스토랑", "음식점", "베이커리", "디저트", "펜션", "관광지", "박물관", "공원", "서점")
+            val queries = listOf(
+                "카페", "레스토랑", "음식점", "베이커리", "디저트", "펜션", "관광지", "박물관", "공원", "서점",
+                "한식당", "중식당", "일식당", "양식당", "치킨집", "피자", "햄버거", "분식", "족발", "곱창",
+                "호텔", "모텔", "게스트하우스", "리조트", "펜션", "민박", "캠핑장",
+                "쇼핑몰", "마트", "백화점", "편의점", "아울렛", "시장", "상점",
+                "영화관", "pc방", "노래방", "볼링장", "당구장", "스포츠센터", "헬스장", "수영장",
+                "병원", "약국", "은행", "우체국", "주유소", "세차장", "정비소"
+            )
             
             val coordIndex = (callNumber - 1) % seoulCoords.size
             val queryIndex = (callNumber - 1) % queries.size

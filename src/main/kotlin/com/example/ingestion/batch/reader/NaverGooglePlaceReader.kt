@@ -67,8 +67,14 @@ class NaverGooglePlaceReader(
     private val naverApiTimer = Timer.builder("naver_api_calls").register(meterRegistry)
     private val googleApiTimer = Timer.builder("google_api_calls").register(meterRegistry)
 
-    // Seoul search configuration
-    private val queries = listOf("카페", "레스토랑", "음식점", "펍", "바", "베이커리", "디저트", "공원", "박물관", "미술관", "서점", "쇼핑몰", "영화관", "헬스장", "스파")
+    // Seoul search configuration - Expanded for comprehensive data collection
+    private val queries = listOf(
+        "카페", "레스토랑", "음식점", "펍", "바", "베이커리", "디저트", "공원", "박물관", "미술관",
+        "서점", "쇼핑몰", "영화관", "헬스장", "스파", "호텔", "모텔", "펜션", "게스트하우스", "찜질방",
+        "노래방", "pc방", "오락실", "볼링장", "당구장", "병원", "약국", "마트", "편의점", "주유소",
+        "세차장", "미용실", "네일샵", "마사지", "사우나", "피시방", "스터디카페", "코인세탁소", "빨래방", "사진관",
+        "학원", "도서관", "문화센터", "체육관", "수영장", "골프연습장", "클럽", "라운지", "와인바", "맥주집"
+    )
     private val seoulCoords = listOf(
         SeoulCoordinate(BigDecimal("37.5665"), BigDecimal("126.9780"), 5000), // 중구
         SeoulCoordinate(BigDecimal("37.5172"), BigDecimal("127.0473"), 5000), // 강남구
@@ -80,11 +86,20 @@ class NaverGooglePlaceReader(
         SeoulCoordinate(BigDecimal("37.5814"), BigDecimal("127.0097"), 5000)  // 종로구
     )
 
+    // State management with @Volatile for thread-safe continuous processing
+    @Volatile
+    private var readCount = 0
+    @Volatile
     private var currentBatch = mutableListOf<EnrichedPlace>()
+    @Volatile
     private var currentIndex = 0
+    @Volatile
     private var searchContextIndex = 0
+    @Volatile
     private var currentPage = AtomicInteger(1)
+    @Volatile
     private var hasMoreData = true
+    @Volatile
     private var initialized = false
     
     companion object {
@@ -92,6 +107,13 @@ class NaverGooglePlaceReader(
     }
 
     override fun read(): EnrichedPlace? {
+        // CRITICAL: Reset state for fresh job execution (continuous operation fix)
+        if (readCount == 0) {
+            resetReaderState()
+        }
+        readCount++
+        logger.error("📍 CONTINUOUS READER - CALL #$readCount (Job execution: fresh state)")
+        
         if (!initialized) {
             initialize()
             initialized = true
@@ -125,16 +147,12 @@ class NaverGooglePlaceReader(
         val correlationId = generateCorrelationId()
         MDC.put(CORRELATION_ID, correlationId)
         
-        logger.info("Initializing NaverGooglePlaceReader for Seoul coverage with ${queries.size} queries x ${seoulCoords.size} coordinates")
+        logger.error("🚀 CONTINUOUS MODE: Initializing NaverGooglePlaceReader for Seoul coverage with ${queries.size} queries x ${seoulCoords.size} coordinates")
         
-        // Try to resume from last processed state
-        val lastState = jobExecutionStateRepository.findByJobName(jobName)
-        if (lastState.isPresent) {
-            searchContextIndex = lastState.get().lastProcessedPage
-            logger.info("Resuming from search context index $searchContextIndex")
-        } else {
-            logger.info("Starting fresh from search context 0")
-        }
+        // CONTINUOUS OPERATION: Always start from beginning for fresh data collection
+        // Don't resume from previous state to ensure continuous operation until API exhausted
+        searchContextIndex = 0
+        logger.error("🔄 CONTINUOUS MODE: Starting fresh from search context 0 (ignore job state for continuous operation)")
         
         meterRegistry.gauge("batch_current_context", searchContextIndex)
     }
@@ -152,15 +170,18 @@ class NaverGooglePlaceReader(
             val enrichedPlaces = mutableListOf<EnrichedPlace>()
             var currentNaverPage = 1
 
-            // Paginate through Naver results
+            // Paginate through Naver results (take top 50 from 100 results)
             while (currentNaverPage <= naverMaxPages) {
                 val naverResponse = fetchNaverPlaces(context.copy(page = currentNaverPage))
                 if (naverResponse.items.isEmpty()) break
 
                 logger.debug("Fetched ${naverResponse.items.size} places from Naver (page $currentNaverPage)")
+                
+                // User requested: take only top 50 from the 100 results (comment sorted)
+                val topPlaces = naverResponse.items.take(50)
 
-                // Enrich each Naver place with Google data
-                for (naverPlace in naverResponse.items) {
+                // Enrich each Naver place with Google data (using top 50 only)
+                for (naverPlace in topPlaces) {
                     try {
                         val googlePlace = enrichWithGoogle(naverPlace)
                         val photoUrl = googlePlace?.photos?.firstOrNull()?.let { photo ->
@@ -222,9 +243,9 @@ class NaverGooglePlaceReader(
                     builder
                         .path(naverBaseUrl)
                         .queryParam("query", context.query)
-                        .queryParam("display", naverPageSize)
-                        .queryParam("start", (context.page - 1) * naverPageSize + 1)
-                        .queryParam("sort", "random")
+                        .queryParam("display", 100) // User requested: display 100 results
+                        .queryParam("start", (context.page - 1) * 100 + 1) // Match display param
+                        .queryParam("sort", "comment") // User requested: sort by comment count
                         .build()
                 }
                 .header("X-Naver-Client-Id", naverClientId)
@@ -372,6 +393,16 @@ class NaverGooglePlaceReader(
         }
     }
 
+    private fun resetReaderState() {
+        logger.error("🔄 RESETTING READER STATE FOR NEW JOB EXECUTION")
+        currentBatch.clear()
+        currentIndex = 0
+        searchContextIndex = 0
+        hasMoreData = true
+        initialized = false
+        logger.error("✅ Reader state reset complete - ready for continuous operation")
+    }
+    
     private fun generateCorrelationId(): String {
         return "naver-google-batch-${System.currentTimeMillis()}-${Thread.currentThread().id}"
     }

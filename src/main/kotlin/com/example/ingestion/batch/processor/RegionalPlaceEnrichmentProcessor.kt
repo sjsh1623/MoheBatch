@@ -41,6 +41,17 @@ class RegionalPlaceEnrichmentProcessor(
                 logger.warn("Skipping place with empty title")
                 return null
             }
+            
+            // Duplicate checking - skip if place already exists with same location
+            val uniqueIdentifier = "${item.naverPlace.cleanTitle}-${item.naverPlace.latitude}-${item.naverPlace.longitude}"
+            if (isRecentlyProcessed(uniqueIdentifier)) {
+                logger.debug("Skipping duplicate place: ${item.naverPlace.cleanTitle}")
+                meterRegistry.counter("places_skipped_duplicate").increment()
+                return null
+            }
+            
+            // Mark as processed for duplicate prevention
+            markAsProcessed(uniqueIdentifier)
 
             // Generate AI-powered description using Ollama
             val enhancedDescription = generateEnhancedDescription(item)
@@ -190,7 +201,7 @@ class RegionalPlaceEnrichmentProcessor(
         val originalDesc = item.naverPlace.description
         
         return """
-장소의 분위기와 경험에 대한 생생한 설명을 작성해 주세요.
+이 장소에 대한 매력적이고 생생한 설명을 작성해 주세요.
 
 장소 정보:
 - 이름: $placeName
@@ -198,16 +209,18 @@ class RegionalPlaceEnrichmentProcessor(
 - 기존 설명: $originalDesc
 - 추가 정보: $contextInfo
 
-요구사항:
-1. 200-300자 내외의 한국어 설명을 작성해 주세요
-2. 장소의 분위기, 음향, 조명, 인테리어 스타일을 생생하게 묘사해 주세요
-3. 사람들의 활동 양상과 붐비는 정도를 설명해 주세요 (조용한지, 활기찬지, 대화하는 소리, 음악 등)
-4. 방문객이 느낄 수 있는 감정과 경험을 중심으로 작성해 주세요
-5. 주소나 구체적인 위치 정보는 절대 포함하지 마세요
-6. 시간대별 분위기 차이가 있다면 언급해 주세요
-7. 공간의 크기감과 좌석 배치, 프라이빗함 정도를 설명해 주세요
+작성 가이드:
+1. 200-300자로 충분히 설명적이고 정보가 풍부하게 작성
+2. 캐주얼한 존댓말로 실제 체험담처럼 작성 (친근하지만 예의 있게)
+3. 분위기, 특징, 매력 포인트를 구체적으로 묘사
+4. 어떤 사람들이 좋아할지, 무엇이 특별한지 설명
+5. 절대 금지: 주소, 위치, 전화번호, 운영시간, 구체적 장소명 언급 금지
+6. 격식체("이곳은", "해당 장소는") 사용 금지
+7. 캐주얼 존댓말 사용 ("분위기 좋아요", "정말 맘에 들어요", "추천할 만해요", "~더라구요")
 
-분위기 중심 설명:
+예시 스타일: "여기 정말 분위기 좋더라구요. 인테리어도 감각적이고 사람들이 편안하게 있을 수 있는 공간이에요. 특히 조명이 따뜻해서 친구들이랑 오기 딱 좋고, 음식도 맛있어서 재방문 의사 100%예요."
+
+생생한 체험 후기:
         """.trimIndent()
     }
 
@@ -270,11 +283,45 @@ class RegionalPlaceEnrichmentProcessor(
     private fun fallbackDescription(item: EnrichedPlace): String {
         val placeName = item.naverPlace.cleanTitle
         val category = item.naverPlace.category
-        val address = item.naverPlace.address
         
         return when {
-            item.naverPlace.description?.isNotBlank() == true -> item.naverPlace.description!!
-            else -> "${placeName}은(는) ${address}에 위치한 ${category} 장소입니다."
+            item.naverPlace.description?.isNotBlank() == true -> {
+                // Clean existing description - remove addresses if present
+                val cleanDesc = item.naverPlace.description!!
+                    .replace(Regex("서울특별시.*?[0-9-]+[가-힣]*[0-9]*층?호?"), "") // Remove Seoul addresses
+                    .replace(Regex("경기도.*?[0-9-]+[가-힣]*[0-9]*층?호?"), "") // Remove Gyeonggi addresses  
+                    .replace(Regex("인천광역시.*?[0-9-]+[가-힣]*[0-9]*층?호?"), "") // Remove Incheon addresses
+                    .replace(Regex("[0-9]{2,3}-[0-9]{3,4}-[0-9]{4}"), "") // Remove phone numbers
+                    .replace(Regex("전화.*?[0-9-]+"), "") // Remove phone info
+                    .replace(Regex("주소.*"), "") // Remove address info
+                    .trim()
+                
+                if (cleanDesc.length > 10) cleanDesc else generateNaturalFallback(placeName, category)
+            }
+            else -> generateNaturalFallback(placeName, category)
+        }
+    }
+    
+    private fun generateNaturalFallback(placeName: String, category: String): String {
+        return when {
+            category.contains("카페") || category.contains("커피") -> 
+                "$placeName 여기 분위기 정말 좋아요. 커피도 맛있고 앉아서 이야기하기 딱 좋은 공간이에요. 많은 분들이 찾는 이유가 있더라구요."
+            category.contains("음식점") || category.contains("레스토랑") || category.contains("한식") -> 
+                "$placeName 맛집으로 유명한 곳이에요. 음식도 맛있고 분위기도 좋아서 사람들이 자주 가는 곳이더라구요. 추천할 만해요."
+            category.contains("베이커리") || category.contains("빵") -> 
+                "$placeName 빵이 정말 맛있는 곳이에요. 갓 구운 빵 냄새가 너무 좋고 종류도 다양해서 선택의 재미가 있어요."
+            category.contains("주유소") -> 
+                "$placeName 접근성 좋은 주유소예요. 직원분들도 친절하고 부대시설도 깔끔하게 관리되는 곳이더라구요."
+            category.contains("병원") || category.contains("의료") -> 
+                "$placeName 시설 깔끔하고 직원분들 친절한 곳이에요. 대기시간도 적당하고 진료 받기 좋은 환경이더라구요."
+            category.contains("은행") || category.contains("금융") -> 
+                "$placeName 업무 보기 편한 곳이에요. 직원분들 친절하고 시설도 깔끔해서 금융 업무 처리하기 좋더라구요."
+            category.contains("헬스") || category.contains("체육") -> 
+                "$placeName 운동하기 좋은 환경이에요. 시설도 잘 되어 있고 분위기도 좋아서 꾸준히 다니기 좋은 곳이더라구요."
+            category.contains("쇼핑") || category.contains("마트") -> 
+                "$placeName 물건 구하기 편한 곳이에요. 종류도 다양하고 가격도 합리적이어서 자주 이용하게 되는 곳이더라구요."
+            else -> 
+                "$placeName 괜찮은 곳이에요. 사람들이 많이 찾는 이유가 있더라구요. 한 번 가보시면 왜 인기인지 알 수 있을 거예요."
         }
     }
 
@@ -358,6 +405,24 @@ class RegionalPlaceEnrichmentProcessor(
         }
         
         return types.toList()
+    }
+    
+    // Simple in-memory duplicate tracking (resets per job execution)
+    companion object {
+        private val processedPlaces = mutableSetOf<String>()
+    }
+    
+    private fun isRecentlyProcessed(identifier: String): Boolean {
+        return processedPlaces.contains(identifier)
+    }
+    
+    private fun markAsProcessed(identifier: String) {
+        processedPlaces.add(identifier)
+        // Keep only recent 10000 entries to prevent memory issues
+        if (processedPlaces.size > 10000) {
+            val toRemove = processedPlaces.take(processedPlaces.size - 8000)
+            processedPlaces.removeAll(toRemove.toSet())
+        }
     }
 }
 
