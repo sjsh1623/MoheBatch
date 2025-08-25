@@ -107,12 +107,11 @@ class BatchService(
         validatePlaceData(placeData)
 
         return try {
-            // Check if place already exists by external ID
-            // For now, we'll use name as unique identifier since Place entity may not have externalId
-            val existingPlace = placeRepository.findByName(placeData.name)
+            // Check if place already exists by name (old method - for backward compatibility)
+            val existingPlace = placeRepository.findByName(placeData.name).orElse(null)
 
-            if (existingPlace.isPresent) {
-                val existing = existingPlace.get()
+            if (existingPlace != null) {
+                val existing = existingPlace
                 
                 // Only update if external data is newer
                 // Since Place entity may not have externalUpdatedAt, we'll always update for now

@@ -1,7 +1,6 @@
 package com.mohe.spring.service
 
-import com.example.ingestion.dto.GooglePlaceDetail
-import com.example.ingestion.dto.NaverPlaceItem
+// Removed external batch DTO imports - using generic Any type instead
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.util.concurrent.ConcurrentHashMap

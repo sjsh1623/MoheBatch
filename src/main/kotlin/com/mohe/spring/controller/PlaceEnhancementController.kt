@@ -176,17 +176,17 @@ class PlaceEnhancementController(
         return try {
             logger.info("Fetching data from all providers for place: $placeName")
             
-            val filterSet = providerFilter?.split(\",\")?.map { it.trim() }?.toSet()
+            val filterSet = providerFilter?.split(",")?.map { it.trim() }?.toSet()
             
             val results = runBlocking {
                 apiProviderRegistry.fetchFromAllProviders(placeName, address, filterSet)
             }
             
             val response = mapOf(
-                \"placeName\" to placeName,
-                \"results\" to results,
-                \"totalProviders\" to results.size,
-                \"successfulProviders\" to results.count { it.value.isSuccess() }
+                "placeName" to placeName,
+                "results" to results,
+                "totalProviders" to results.size,
+                "successfulProviders" to results.count { it.value.isSuccess() }
             )
             
             ResponseEntity.ok(ApiResponse.success(response))
@@ -200,13 +200,13 @@ class PlaceEnhancementController(
     }
 
     // Helper methods for mock object creation
-    private fun createMockNaverPlace(data: Map<String, Any>): com.example.ingestion.dto.NaverPlaceItem {
+    private fun createMockNaverPlace(data: Map<String, Any>): Any {
         // 실제 구현에서는 Jackson ObjectMapper를 사용하여 변환
-        throw NotImplementedError("Mock NaverPlaceItem creation to be implemented")
+        return data // Temporary implementation
     }
 
-    private fun createMockGooglePlace(data: Map<String, Any>): com.example.ingestion.dto.GooglePlaceDetail {
+    private fun createMockGooglePlace(data: Map<String, Any>): Any {
         // 실제 구현에서는 Jackson ObjectMapper를 사용하여 변환
-        throw NotImplementedError("Mock GooglePlaceDetail creation to be implemented")
+        return data // Temporary implementation
     }
 }
