@@ -2,7 +2,7 @@ package com.example.ingestion.batch.config
 
 import com.example.ingestion.batch.listener.JobExecutionListener
 import com.example.ingestion.batch.processor.RegionalPlaceEnrichmentProcessor
-import com.example.ingestion.batch.reader.RegionalNaverGooglePlaceReader
+import com.example.ingestion.batch.reader.ContinuousPlaceReader
 import com.example.ingestion.batch.reader.EnrichedPlace
 import com.example.ingestion.config.ContinuousBatchService
 import com.example.ingestion.dto.ProcessedPlace
@@ -58,7 +58,7 @@ class RegionalBatchConfiguration(
     fun regionalPlaceStep(
         jobRepository: JobRepository,
         transactionManager: PlatformTransactionManager,
-        regionalNaverGooglePlaceReader: RegionalNaverGooglePlaceReader,
+        continuousPlaceReader: ContinuousPlaceReader,
         regionalPlaceEnrichmentProcessor: RegionalPlaceEnrichmentProcessor,
         moheSpringApiWriter: MoheSpringApiWriter
     ): Step {
@@ -66,7 +66,7 @@ class RegionalBatchConfiguration(
         
         return StepBuilder("regionalPlaceStep", jobRepository)
             .chunk<EnrichedPlace, ProcessedPlace>(chunkSize, transactionManager)
-            .reader(regionalNaverGooglePlaceReader)
+            .reader(continuousPlaceReader)
             .processor(regionalPlaceEnrichmentProcessor)
             .writer(moheSpringApiWriter)
             .faultTolerant()

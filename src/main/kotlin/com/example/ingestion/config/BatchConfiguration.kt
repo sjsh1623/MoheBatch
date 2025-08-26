@@ -2,7 +2,7 @@ package com.example.ingestion.config
 
 import com.example.ingestion.batch.listener.JobExecutionListener
 import com.example.ingestion.batch.processor.DataProcessor
-import com.example.ingestion.batch.reader.NaverGooglePlaceReader
+// import com.example.ingestion.batch.reader.NaverGooglePlaceReader
 import com.example.ingestion.batch.reader.EnrichedPlace
 import com.example.ingestion.batch.processor.PlaceEnrichmentProcessor
 import com.example.ingestion.dto.ProcessedPlace
@@ -23,7 +23,8 @@ import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.web.reactive.function.client.WebClientResponseException
 import java.net.SocketTimeoutException
 
-@Configuration
+// DISABLED - OLD BROKEN CONFIGURATION - Use RegionalBatchConfiguration instead
+/* @Configuration
 @EnableRetry
 class BatchConfiguration(
     @Value("\${app.batch.chunk-size:500}") private val chunkSize: Int,
@@ -111,4 +112,4 @@ class BatchConfiguration(
             }
         }
     }
-}
+} */

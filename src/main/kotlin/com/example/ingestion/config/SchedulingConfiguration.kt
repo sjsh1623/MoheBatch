@@ -9,15 +9,16 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 
-@Component
+// DISABLED - OLD BROKEN SCHEDULER
+/* @Component
 @ConditionalOnProperty(
-    value = ["app.batch.scheduling.enabled"],
+    value = ["app.batch.scheduling.old-job-enabled"],
     havingValue = "true",
-    matchIfMissing = false
+    matchIfMissing = false  // DISABLED - this job is broken
 )
 class SchedulingConfiguration(
     private val jobLauncher: JobLauncher,
-    private val naverGooglePlaceIngestionJob: Job
+    private val regionalPlaceIngestionJob: Job
 ) {
 
     private val logger = LoggerFactory.getLogger(SchedulingConfiguration::class.java)
@@ -32,7 +33,7 @@ class SchedulingConfiguration(
                 .addString("scheduled", "true")
                 .toJobParameters()
 
-            val jobExecution = jobLauncher.run(naverGooglePlaceIngestionJob, jobParameters)
+            val jobExecution = jobLauncher.run(regionalPlaceIngestionJob, jobParameters)
             
             logger.info("Scheduled job completed with status: {}, execution id: {}", 
                 jobExecution.status, jobExecution.id)
@@ -41,4 +42,4 @@ class SchedulingConfiguration(
             logger.error("Failed to run scheduled data ingestion job: ${ex.message}", ex)
         }
     }
-}
+} */
