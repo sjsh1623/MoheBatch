@@ -35,18 +35,30 @@ spring:
           lob:
             non_contextual_creation: true
 
-  # Email configuration (for development)
+  # Email configuration
   mail:
-    host: localhost
-    port: 1025
-    username: 
-    password: 
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
-          auth: false
+          auth: ${MAIL_SMTP_AUTH:true}
           starttls:
-            enable: false
+            enable: ${MAIL_SMTP_STARTTLS:true}
+            required: ${MAIL_SMTP_STARTTLS_REQUIRED:true}
+          ssl:
+            trust: ${MAIL_SMTP_SSL_TRUST:smtp.gmail.com}
+        debug: ${MAIL_DEBUG:false}
+    # Fallback for development (MailHog)
+    test:
+      host: localhost
+      port: 1025
+      username: 
+      password: 
+      auth: false
+      starttls: false
 
 # JWT Configuration
 jwt:
@@ -54,6 +66,11 @@ jwt:
   access-token-expiration: 3600000 # 1 hour
   refresh-token-expiration: 2592000000 # 30 days
 
+# Weather API Configuration
+weather:
+  openweathermap:
+    api-key: ${OPENWEATHERMAP_API_KEY:}
+    
 # External API Configuration
 naver:
   place:

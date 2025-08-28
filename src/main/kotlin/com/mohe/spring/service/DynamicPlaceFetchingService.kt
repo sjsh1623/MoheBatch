@@ -148,7 +148,7 @@ class DynamicPlaceFetchingService(
                 
                 places.addAll(naverPlaces)
                 
-                if (places.size >= 50) break // Limit per location/query
+                // No limit - collect all available places
             }
             
         } catch (ex: Exception) {
