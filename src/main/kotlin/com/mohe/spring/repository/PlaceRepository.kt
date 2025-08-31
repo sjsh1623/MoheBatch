@@ -115,4 +115,27 @@ interface PlaceRepository : JpaRepository<Place, Long> {
 
     @Query("SELECT p FROM Place p WHERE p.latitude IS NULL OR p.longitude IS NULL")
     fun findPlacesWithoutCoordinates(): List<Place>
+    
+    fun findByLatitudeBetweenAndLongitudeBetween(
+        minLatitude: BigDecimal,
+        maxLatitude: BigDecimal, 
+        minLongitude: BigDecimal,
+        maxLongitude: BigDecimal
+    ): List<Place>
+
+    @Query(value = """
+        SELECT p.* FROM places p
+        WHERE ST_DWithin(
+            p.location_geom,
+            ST_MakePoint(:longitude, :latitude),
+            :distance
+        )
+        ORDER BY p.bookmark_count DESC
+        LIMIT 20
+    """, nativeQuery = true)
+    fun findPopularPlaces(
+        @Param("latitude") latitude: Double,
+        @Param("longitude") longitude: Double,
+        @Param("distance") distance: Double
+    ): List<Place>
 }

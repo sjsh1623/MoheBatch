@@ -1,6 +1,5 @@
 package com.mohe.spring.service
 
-import com.mohe.spring.dto.PlaceDto
 import com.mohe.spring.entity.Place
 import com.mohe.spring.repository.PlaceRepository
 import com.mohe.spring.repository.PlaceKeywordExtractionRepository
@@ -61,12 +60,17 @@ data class ContextualPlace(
  */
 data class SearchContext(
     val query: String,
-    val extractedKeywords: List<String>,
-    val weather: WeatherData?,
-    val daypart: String,
-    val localTime: String,
-    val locationDescription: String,
-    val recommendation: String // AI-generated contextual recommendation message
+    val extractedKeywords: List<String> = emptyList(),
+    val weather: String,
+    val time: String,
+    val location: String,
+    val isAuthenticated: Boolean = false,
+    val recommendationBasis: String = "",
+    val recommendation: String = "", // AI-generated contextual recommendation message
+    // Legacy fields for backward compatibility
+    val daypart: String = time,
+    val localTime: String = time,
+    val locationDescription: String = location
 )
 
 /**
@@ -370,6 +374,7 @@ class ContextualRecommendationService(
                     reasons.add("추운 날씨에 따뜻한 실내 공간")
                 weather.isComfortable && isOutdoorPlace(place.category ?: "") ->
                     reasons.add("좋은 날씨에 야외 활동하기 좋은 곳")
+                else -> {} // No specific weather-based recommendation
             }
         }
         
@@ -414,10 +419,9 @@ class ContextualRecommendationService(
         return SearchContext(
             query = query,
             extractedKeywords = keywords,
-            weather = weather,
-            daypart = timeContext,
-            localTime = LocalDateTime.now().toString(),
-            locationDescription = locationDescription,
+            weather = weather?.conditionText ?: "날씨 정보 없음",
+            time = timeContext,
+            location = locationDescription,
             recommendation = recommendation
         )
     }

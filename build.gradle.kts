@@ -58,6 +58,9 @@ dependencies {
     // YAML configuration support
     implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
     
+    // HTML sanitization for email content
+    implementation("org.jsoup:jsoup:1.17.2")
+    
     // Test dependencies
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")

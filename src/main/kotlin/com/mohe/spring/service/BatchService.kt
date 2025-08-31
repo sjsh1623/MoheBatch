@@ -308,6 +308,7 @@ class BatchService(
             description = placeData.description,
             latitude = placeData.latitude,
             longitude = placeData.longitude,
+            imageUrl = placeData.imageUrl,
             rating = placeData.rating?.let { BigDecimal(it.toString()) } ?: BigDecimal.ZERO
         )
     }

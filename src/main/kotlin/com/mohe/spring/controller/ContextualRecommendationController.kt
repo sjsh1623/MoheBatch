@@ -221,7 +221,7 @@ class ContextualRecommendationController(
         @Parameter(description = "키워드 검색 요청", required = true)
         @Valid @RequestBody request: PlaceSearchRequest,
         httpRequest: HttpServletRequest
-    ): ResponseEntity<ApiResponse<PlaceSearchResponse>> {
+    ): ResponseEntity<ApiResponse<ContextualPlaceSearchResponse>> {
         return try {
             // Validate input
             if (request.keywords.isEmpty()) {
@@ -258,7 +258,7 @@ class ContextualRecommendationController(
             val contextualResponse = contextualRecommendationService.getContextualRecommendations(contextualRequest)
             
             // Convert to simplified search response
-            val searchResponse = PlaceSearchResponse(
+            val searchResponse = ContextualPlaceSearchResponse(
                 places = contextualResponse.places.map { contextualPlace ->
                     SimplePlace(
                         id = contextualPlace.id,
@@ -305,9 +305,9 @@ data class PlaceSearchRequest(
 )
 
 /**
- * Simplified place search response
+ * Contextual place search response
  */
-data class PlaceSearchResponse(
+data class ContextualPlaceSearchResponse(
     val places: List<SimplePlace>,
     val totalResults: Int
 )

@@ -301,6 +301,34 @@ class PlaceService(
         
         return "${timeText}에는 멀지 않고 ${weatherText}에 적합한 실내 장소들을 추천드릴게요."
     }
+
+    fun getPopularPlaces(latitude: Double, longitude: Double): PlaceListResponse {
+        val currentUser = getCurrentUser()
+        val bookmarkedPlaceIds = bookmarkRepository.findBookmarkedPlaceIdsByUserId(currentUser.id)
+
+        val places = placeRepository.findPopularPlaces(latitude, longitude, 10000.0) // 10km radius
+
+        val placeCards = places.map { place ->
+            PlaceCardData(
+                id = place.id.toString(),
+                title = place.title,
+                rating = place.rating,
+                reviewCount = place.reviewCount,
+                location = place.location,
+                image = place.imageUrl,
+                isBookmarked = bookmarkedPlaceIds.contains(place.id)
+            )
+        }
+
+        return PlaceListResponse(
+            places = placeCards,
+            pagination = PaginationData(
+                currentPage = 1,
+                totalPages = 1,
+                totalCount = placeCards.size
+            )
+        )
+    }
     
     private fun getCurrentUser(): User {
         val userPrincipal = SecurityContextHolder.getContext().authentication.principal as UserPrincipal

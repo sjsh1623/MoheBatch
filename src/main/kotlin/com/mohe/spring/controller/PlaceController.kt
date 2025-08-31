@@ -18,14 +18,14 @@ import org.springframework.web.bind.annotation.*
 
 @RestController
 @RequestMapping("/api/places")
-@PreAuthorize("hasRole('USER')")
-@SecurityRequirement(name = "bearerAuth")
 @Tag(name = "장소 관리", description = "장소 추천, 검색, 상세 정보 API")
 class PlaceController(
     private val placeService: PlaceService
 ) {
     
     @GetMapping("/recommendations")
+    @PreAuthorize("hasRole('USER')")
+    @SecurityRequirement(name = "bearerAuth")
     @Operation(
         summary = "개인화된 장소 추천",
         description = "사용자의 MBTI와 선호도를 기반으로 개인화된 장소를 추천합니다."
@@ -214,6 +214,44 @@ class PlaceController(
                 ApiResponse.error(
                     code = ErrorCode.INTERNAL_SERVER_ERROR,
                     message = e.message ?: "장소 검색에 실패했습니다",
+                    path = httpRequest.requestURI
+                )
+            )
+        }
+    }
+
+    @GetMapping("/popular")
+    @Operation(
+        summary = "인기 장소 목록 조회",
+        description = "사용자 위치를 기반으로 10km 이내의 인기 장소를 북마크 순으로 조회합니다."
+    )
+    @ApiResponses(
+        value = [
+            SwaggerApiResponse(
+                responseCode = "200",
+                description = "인기 장소 목록 조회 성공",
+                content = [Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = PlaceListResponse::class)
+                )]
+            )
+        ]
+    )
+    fun getPopularPlaces(
+        @Parameter(description = "사용자 위도", required = true, example = "37.5665")
+        @RequestParam latitude: Double,
+        @Parameter(description = "사용자 경도", required = true, example = "126.9780")
+        @RequestParam longitude: Double,
+        httpRequest: HttpServletRequest
+    ): ResponseEntity<ApiResponse<PlaceListResponse>> {
+        return try {
+            val response = placeService.getPopularPlaces(latitude, longitude)
+            ResponseEntity.ok(ApiResponse.success(response))
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().body(
+                ApiResponse.error(
+                    code = ErrorCode.INTERNAL_SERVER_ERROR,
+                    message = e.message ?: "인기 장소 목록 조회에 실패했습니다",
                     path = httpRequest.requestURI
                 )
             )

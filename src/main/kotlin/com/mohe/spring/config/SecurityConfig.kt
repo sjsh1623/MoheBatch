@@ -69,6 +69,10 @@ class SecurityConfig(
                     .requestMatchers(
                         "/api/auth/**",
                         "/api/batch/**",
+                        "/api/address/**",
+                        "/api/weather/**",
+                        "/api/places/**",
+                        "/api/recommendations/**",
                         "/health",
                         "/actuator/**",
                         "/swagger-ui/**",
