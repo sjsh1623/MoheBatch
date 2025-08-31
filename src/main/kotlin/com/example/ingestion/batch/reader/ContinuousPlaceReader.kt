@@ -128,7 +128,8 @@ class ContinuousPlaceReader(
         logger.error("📡 FETCHING: $query in $location (page $pageIndex)")
         
         return try {
-            // Call Naver API
+            // Call Naver API with very strict rate limiting
+            Thread.sleep(30000) // 30 second delay to respect API limits
             val naverResponse = fetchFromNaver(location, query, pageIndex)
             logger.error("📥 NAVER: ${naverResponse.items.size} places")
             
@@ -141,6 +142,7 @@ class ContinuousPlaceReader(
             val enrichedPlaces = naverResponse.items.map { naverPlace ->
                 try {
                     logger.error("🔍 GOOGLE ENRICHING: ${naverPlace.cleanTitle}")
+                    Thread.sleep(200) // Small delay for Google API rate limiting
                     val googlePlace = enrichWithGoogle(naverPlace)
                     
                     EnrichedPlace(

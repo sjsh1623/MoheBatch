@@ -25,7 +25,7 @@ class RegionalSchedulingConfiguration(
 
     private val logger = LoggerFactory.getLogger(RegionalSchedulingConfiguration::class.java)
 
-    @Scheduled(cron = "\${app.batch.scheduling.cron:*/10 * * * * ?}")  // Every 10 seconds for continuous processing
+        @Scheduled(cron = "0 */5 * * * ?")  // Every 5 minutes for continuous processing
     fun runRegionalPlaceIngestion() {
         logger.info("Starting scheduled regional place ingestion job")
         

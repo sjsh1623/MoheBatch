@@ -133,7 +133,7 @@ class RegionalPlaceEnrichmentProcessor(
                         .maxBackoff(Duration.ofSeconds(10))
                         .filter { it is WebClientResponseException }
                 )
-                .block(Duration.ofSeconds(ollamaTimeout.toLong()))
+                .block(Duration.ofSeconds(120)) // Increased timeout to ensure complete descriptions
 
             val aiDescription = response?.response?.trim() ?: ""
             
@@ -175,7 +175,7 @@ class RegionalPlaceEnrichmentProcessor(
                         .maxBackoff(Duration.ofSeconds(10))
                         .filter { it is WebClientResponseException }
                 )
-                .block(Duration.ofSeconds(ollamaTimeout.toLong()))
+                .block(Duration.ofSeconds(120)) // Increased timeout to ensure complete descriptions
 
             val embedding = response?.embedding ?: emptyList()
             
@@ -203,7 +203,7 @@ class RegionalPlaceEnrichmentProcessor(
         val uniqueFeatures = identifyUniqueFeatures(item)
         
         return """
-이 장소만의 독특한 매력과 특징을 살린 개성 있는 설명을 작성해 주세요.
+이 장소를 직접 방문해서 느낀 생생한 체험담을 친근한 존댓말로 작성해 주세요.
 
 장소 정보:
 - 이름: $placeName
@@ -213,20 +213,20 @@ class RegionalPlaceEnrichmentProcessor(
 - 고유 특징: $uniqueFeatures
 - 추가 정보: $contextInfo
 
-작성 가이드:
-1. 최소 100자 이상, 500-800자로 이 장소의 특징, 분위기, 경험, 감정을 상세하게 작성
-2. 반드시 3문장 이상으로 구성하되, 각 문장은 완전한 의미를 담아야 함
-3. 캐주얼한 존댓말로 실제 방문 후기처럼 작성 (친근하지만 예의 있게)
-4. 리뷰 정보가 있다면 실제 방문객들의 평가 내용을 상세히 반영해서 작성
-5. 같은 카테고리라도 각 장소만의 차별화된 포인트를 구체적으로 강조
-6. 방문했을 때의 구체적인 경험, 감정, 분위기, 소리, 냄새까지 생생하게 묘사
-7. 이 장소를 추천하는 이유와 어떤 사람들에게 좋을지 구체적으로 설명
-8. 절대 금지: 주소, 위치, 전화번호, 운영시간 언급 금지
-9. 천편일률적인 표현 사용 금지 - 각 장소마다 완전히 다른 개성 있는 표현과 스토리텔링 사용
-10. 장소의 역사, 배경 스토리, 특별한 에피소드가 있다면 포함하여 더욱 풍성하게 작성
-11. 각 문장은 서로 다른 측면(분위기, 특징, 경험, 추천 이유 등)을 다뤄야 함
+작성 가이드 (공감과 친근함이 핵심):
+1. 500-800자 분량으로 이 장소만의 특별한 매력을 진심이 담긴 존댓말로 작성
+2. 반드시 3문장 이상의 완전한 문장으로 구성하여 자연스럽게 읽히도록 작성
+3. "여기 정말 좋아요", "추천드려요", "기분이 좋아져요" 같은 친근하고 공감 가는 존댓말 사용
+4. 실제 방문객의 솔직한 후기처럼 개인적인 감정과 경험을 생생하게 표현
+5. 리뷰가 있다면 "다른 분들도 이렇게 말씀하시더라고요" 식으로 자연스럽게 반영
+6. 방문 순간의 첫인상, 머무는 동안의 기분, 떠날 때의 아쉬움까지 감정의 변화를 담아서 작성
+7. "이런 분들께 정말 추천하고 싶어요", "혼자 가기에도 좋고 친구들과 함께해도 좋아요" 같이 공감대 형성
+8. 계절감, 시간대별 분위기, 날씨에 따른 느낌의 차이까지 디테일하게 묘사
+9. 절대 금지: 주소, 위치 정보, 전화번호, 운영시간, 가격 정보 언급 금지
+10. 똑같은 표현 반복 금지 - 매 장소마다 완전히 다른 개성과 감성으로 작성
+11. "진짜", "정말", "완전" 같은 자연스러운 감탄사를 적절히 사용하여 생동감 있게 표현
 
-개성 있는 체험 후기:
+마치 친한 친구에게 추천하는 듯한 따뜻하고 정감 있는 후기:
         """.trimIndent()
     }
 
@@ -683,11 +683,7 @@ class RegionalPlaceEnrichmentProcessor(
     
     private fun markAsProcessed(identifier: String) {
         processedPlaces.add(identifier)
-        // Keep only recent 10000 entries to prevent memory issues
-        if (processedPlaces.size > 10000) {
-            val toRemove = processedPlaces.take(processedPlaces.size - 8000)
-            processedPlaces.removeAll(toRemove.toSet())
-        }
+        // No limit - allow unlimited data storage
     }
 }
 
