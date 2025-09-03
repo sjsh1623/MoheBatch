@@ -562,4 +562,42 @@ class RecommendationController(
         )
         return mbti.uppercase() in validMbtiTypes
     }
+
+    /**
+     * POST endpoint for recommendations query (legacy frontend compatibility)
+     * Redirects to GET contextual endpoint
+     */
+    @Operation(
+        summary = "Query recommendations (legacy)",
+        description = "Legacy POST endpoint that redirects to contextual recommendations"
+    )
+    @ApiResponses(
+        value = [
+            SwaggerApiResponse(responseCode = "200", description = "Recommendations retrieved successfully"),
+            SwaggerApiResponse(responseCode = "400", description = "Invalid parameters"),
+            SwaggerApiResponse(responseCode = "500", description = "Failed to generate recommendations")
+        ]
+    )
+    @PostMapping("/query")
+    fun queryRecommendations(
+        @RequestBody request: Map<String, Any?>,
+        @AuthenticationPrincipal userPrincipal: UserPrincipal?
+    ): ResponseEntity<ApiResponse<ContextualRecommendationResponse>> {
+        return try {
+            val lat = request["lat"]?.toString()?.toDoubleOrNull() ?: 37.5665
+            val lon = request["lon"]?.toString()?.toDoubleOrNull() ?: 126.9780
+            val query = request["query"]?.toString() ?: "좋은 장소"
+            val limit = request["limit"]?.toString()?.toIntOrNull() ?: 10
+
+            logger.info("POST query recommendations: lat=$lat, lon=$lon, query=$query, limit=$limit")
+
+            // Redirect to contextual recommendations
+            getContextualRecommendations(lat, lon, query, limit, userPrincipal)
+        } catch (e: Exception) {
+            logger.error("Failed to process query recommendations", e)
+            ResponseEntity.status(500).body(
+                ApiResponse.error("QUERY_ERROR", "Failed to process recommendations query: ${e.message}")
+            )
+        }
+    }
 }

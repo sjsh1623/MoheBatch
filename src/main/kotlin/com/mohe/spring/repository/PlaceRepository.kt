@@ -109,7 +109,7 @@ interface PlaceRepository : JpaRepository<Place, Long> {
 
     @Query("SELECT p FROM Place p WHERE p.createdAt < :oldDate AND p.rating < :ratingThreshold")
     fun findOldLowRatedPlaces(
-        @Param("oldDate") oldDate: LocalDateTime,
+        @Param("oldDate") oldDate: OffsetDateTime,
         @Param("ratingThreshold") ratingThreshold: BigDecimal
     ): List<Place>
 
@@ -125,17 +125,62 @@ interface PlaceRepository : JpaRepository<Place, Long> {
 
     @Query(value = """
         SELECT p.* FROM places p
-        WHERE ST_DWithin(
-            p.location_geom,
-            ST_MakePoint(:longitude, :latitude),
-            :distance
-        )
-        ORDER BY p.bookmark_count DESC
+        WHERE p.latitude IS NOT NULL AND p.longitude IS NOT NULL
+        ORDER BY p.review_count DESC, p.rating DESC
         LIMIT 20
     """, nativeQuery = true)
     fun findPopularPlaces(
         @Param("latitude") latitude: Double,
         @Param("longitude") longitude: Double,
         @Param("distance") distance: Double
+    ): List<Place>
+    
+    /**
+     * Find places near location that match time-based preferences
+     */
+    @Query(value = """
+        SELECT p.* FROM places p
+        WHERE p.latitude IS NOT NULL 
+        AND p.longitude IS NOT NULL
+        AND (
+            ABS(CAST(p.latitude AS DOUBLE PRECISION) - :latitude) * 111000 + 
+            ABS(CAST(p.longitude AS DOUBLE PRECISION) - :longitude) * 111000 * COS(RADIANS(:latitude))
+        ) <= :distance
+        AND (
+            :categories IS NULL OR
+            EXISTS (
+                SELECT 1 FROM unnest(ARRAY[:categories]) AS cat(category)
+                WHERE LOWER(p.category) LIKE LOWER('%' || cat.category || '%')
+            )
+        )
+        AND (p.rating >= 3.0 OR p.is_new_place = true)
+        ORDER BY p.rating DESC, p.review_count DESC
+        LIMIT :#{#pageable.pageSize}
+    """, nativeQuery = true)
+    fun findNearbyPlacesByTimePreference(
+        @Param("latitude") latitude: BigDecimal,
+        @Param("longitude") longitude: BigDecimal,
+        @Param("categories") categories: Array<String>,
+        @Param("distance") distance: Double,
+        pageable: Pageable
+    ): List<Place>
+    
+    /**
+     * Find places that match time-based preferences (no location filter)
+     */
+    @Query("""
+        SELECT p FROM Place p
+        WHERE (
+            EXISTS (
+                SELECT 1 FROM :categories cat
+                WHERE LOWER(p.category) LIKE LOWER(CONCAT('%', cat, '%'))
+            )
+        )
+        AND (p.rating >= 3.0 OR p.isNewPlace = true)
+        ORDER BY p.rating DESC, p.reviewCount DESC
+    """)
+    fun findPlacesByTimePreference(
+        @Param("categories") categories: List<String>,
+        pageable: Pageable
     ): List<Place>
 }

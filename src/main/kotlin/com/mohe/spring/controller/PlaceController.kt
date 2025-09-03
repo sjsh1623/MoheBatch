@@ -220,10 +220,40 @@ class PlaceController(
         }
     }
 
+    @GetMapping("/debug")
+    @Operation(
+        summary = "디버그 - 장소 데이터 확인",
+        description = "데이터베이스의 장소 데이터를 확인하기 위한 디버그 엔드포인트"
+    )
+    @ApiResponses(
+        value = [
+            SwaggerApiResponse(
+                responseCode = "200", 
+                description = "디버그 정보 조회 성공"
+            )
+        ]
+    )
+    fun debugPlaces(
+        httpRequest: HttpServletRequest
+    ): ResponseEntity<ApiResponse<Map<String, Any>>> {
+        return try {
+            val totalPlaces = placeService.getDebugInfo()
+            ResponseEntity.ok(ApiResponse.success(totalPlaces))
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().body(
+                ApiResponse.error(
+                    code = ErrorCode.INTERNAL_SERVER_ERROR,
+                    message = e.message ?: "디버그 정보 조회에 실패했습니다",
+                    path = httpRequest.requestURI
+                )
+            )
+        }
+    }
+
     @GetMapping("/popular")
     @Operation(
         summary = "인기 장소 목록 조회",
-        description = "사용자 위치를 기반으로 10km 이내의 인기 장소를 북마크 순으로 조회합니다."
+        description = "사용자 위치를 기반으로 10km 이내의 인기 장소를 북마크 순으로 조회합니다. 게스트와 로그인 사용자 모두 접근 가능합니다."
     )
     @ApiResponses(
         value = [
@@ -252,6 +282,84 @@ class PlaceController(
                 ApiResponse.error(
                     code = ErrorCode.INTERNAL_SERVER_ERROR,
                     message = e.message ?: "인기 장소 목록 조회에 실패했습니다",
+                    path = httpRequest.requestURI
+                )
+            )
+        }
+    }
+
+    @GetMapping("/current-time")
+    @Operation(
+        summary = "지금 이 시간의 장소 추천",
+        description = "현재 시간과 날씨를 기반으로 적합한 장소를 추천합니다. 로그인 여부와 관계없이 모든 사용자가 접근 가능합니다."
+    )
+    @ApiResponses(
+        value = [
+            SwaggerApiResponse(
+                responseCode = "200",
+                description = "현재 시간대 추천 장소 조회 성공",
+                content = [Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CurrentTimeRecommendationsResponse::class)
+                )]
+            )
+        ]
+    )
+    fun getCurrentTimePlaces(
+        @Parameter(description = "사용자 위도", example = "37.5665")
+        @RequestParam(required = false) latitude: Double?,
+        @Parameter(description = "사용자 경도", example = "126.9780")
+        @RequestParam(required = false) longitude: Double?,
+        @Parameter(description = "페이지 크기", example = "10")
+        @RequestParam(defaultValue = "10") limit: Int,
+        httpRequest: HttpServletRequest
+    ): ResponseEntity<ApiResponse<CurrentTimeRecommendationsResponse>> {
+        return try {
+            val safeLimit = if (limit < 1) 10 else if (limit > 50) 50 else limit
+            val response = placeService.getCurrentTimePlaces(latitude, longitude, safeLimit)
+            ResponseEntity.ok(ApiResponse.success(response))
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().body(
+                ApiResponse.error(
+                    code = ErrorCode.INTERNAL_SERVER_ERROR,
+                    message = e.message ?: "현재 시간 추천 장소 조회에 실패했습니다",
+                    path = httpRequest.requestURI
+                )
+            )
+        }
+    }
+
+    @Operation(
+        summary = "Get general places list",
+        description = "Get a general list of places with pagination and sorting options"
+    )
+    @ApiResponses(
+        value = [
+            SwaggerApiResponse(responseCode = "200", description = "Places retrieved successfully"),
+            SwaggerApiResponse(responseCode = "400", description = "Invalid parameters")
+        ]
+    )
+    @GetMapping("/list")
+    fun getPlacesList(
+        @Parameter(description = "페이지 번호 (0부터 시작)", example = "0")
+        @RequestParam(defaultValue = "0") page: Int,
+        @Parameter(description = "페이지 크기", example = "10") 
+        @RequestParam(defaultValue = "10") limit: Int,
+        @Parameter(description = "정렬 기준 (popularity, rating, recent)", example = "popularity")
+        @RequestParam(defaultValue = "popularity") sort: String,
+        httpRequest: HttpServletRequest
+    ): ResponseEntity<ApiResponse<PlaceListResponse>> {
+        return try {
+            val safePage = if (page < 0) 0 else page
+            val safeLimit = if (limit < 1) 10 else if (limit > 100) 100 else limit
+            
+            val response = placeService.getPlacesList(safePage, safeLimit, sort)
+            ResponseEntity.ok(ApiResponse.success(response))
+        } catch (e: Exception) {
+            ResponseEntity.badRequest().body(
+                ApiResponse.error(
+                    code = ErrorCode.INTERNAL_SERVER_ERROR,
+                    message = e.message ?: "장소 목록 조회에 실패했습니다",
                     path = httpRequest.requestURI
                 )
             )

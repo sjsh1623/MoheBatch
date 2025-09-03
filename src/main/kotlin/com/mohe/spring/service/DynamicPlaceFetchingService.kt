@@ -35,6 +35,7 @@ class DynamicPlaceFetchingService(
     private val webClient: WebClient,
     private val objectMapper: ObjectMapper,
     private val batchService: BatchService,
+    private val googlePlacesImageService: GooglePlacesImageService,
     @Value("\${naver.place.clientId}") private val naverClientId: String,
     @Value("\${naver.place.clientSecret}") private val naverClientSecret: String,
     @Value("\${google.places.apiKey}") private val googleApiKey: String
@@ -247,6 +248,20 @@ class DynamicPlaceFetchingService(
                     val savedPlace = placeRepository.save(place)
                     
                     // MBTI descriptions will be generated when needed via the keyword extraction service
+                    
+                    // Fetch images asynchronously after saving the place
+                    try {
+                        googlePlacesImageService.fetchImagesForPlace(savedPlace)
+                            .thenAccept { imageCount ->
+                                logger.info("Fetched $imageCount images for place: ${savedPlace.name}")
+                            }
+                            .exceptionally { ex ->
+                                logger.warn("Failed to fetch images for place: ${savedPlace.name}", ex)
+                                null
+                            }
+                    } catch (ex: Exception) {
+                        logger.warn("Failed to trigger image fetching for place: ${savedPlace.name}", ex)
+                    }
                     
                     storedCount++
                 }

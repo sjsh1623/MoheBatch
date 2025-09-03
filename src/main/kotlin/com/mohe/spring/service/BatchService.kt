@@ -549,7 +549,7 @@ class BatchService(
         
         try {
             // Delete places that are old (>6 months) AND have low rating (<3.0)
-            val oldDate = LocalDateTime.now().minusMonths(6)
+            val oldDate = OffsetDateTime.now().minusMonths(6)
             val lowRatingThreshold = BigDecimal("3.0")
             
             val oldLowRatedPlaces = placeRepository.findOldLowRatedPlaces(oldDate, lowRatingThreshold)

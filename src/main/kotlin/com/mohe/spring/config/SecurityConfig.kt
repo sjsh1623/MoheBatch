@@ -73,6 +73,7 @@ class SecurityConfig(
                         "/api/weather/**",
                         "/api/places/**",
                         "/api/recommendations/**",
+                        "/api/place-enhancement/**",
                         "/health",
                         "/actuator/**",
                         "/swagger-ui/**",
