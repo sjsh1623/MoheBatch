@@ -1,10 +1,10 @@
 # Build stage
-FROM gradle:8.5-jdk17 AS build
+FROM gradle:8.5-jdk21 AS build
 
 WORKDIR /app
 
 # Copy gradle files
-COPY build.gradle.kts settings.gradle.kts ./
+COPY build.gradle settings.gradle ./
 
 # Copy source code
 COPY src ./src
@@ -13,7 +13,7 @@ COPY src ./src
 RUN gradle clean build -x test --no-daemon
 
 # Runtime stage
-FROM eclipse-temurin:17-jre
+FROM eclipse-temurin:21-jre
 
 # Install curl for health checks
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
