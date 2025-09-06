@@ -45,9 +45,13 @@ public class InternalBatchController {
             @RequestBody List<InternalPlaceIngestRequest> requests,
             HttpServletRequest httpRequest) {
         try {
+            System.out.println("=== CONTROLLER RECEIVED " + requests.size() + " REQUESTS ===");
             InternalPlaceIngestResponse response = internalPlaceIngestService.ingestPlaces(requests);
+            System.out.println("=== SERVICE RETURNED: " + response.getInsertedCount() + " inserted ===");
             return ResponseEntity.ok(ApiResponse.success(response));
         } catch (Exception e) {
+            System.out.println("=== CONTROLLER ERROR: " + e.getMessage() + " ===");
+            e.printStackTrace();
             ApiResponse<InternalPlaceIngestResponse> errorResponse = ApiResponse.error(
                 ErrorCode.INTERNAL_SERVER_ERROR,
                 e.getMessage() != null ? e.getMessage() : "Failed to ingest places",
