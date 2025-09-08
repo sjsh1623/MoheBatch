@@ -291,4 +291,31 @@ public class PlaceDto {
         String weatherCondition, // "sunny", "rainy", "cloudy", etc.
         String recommendationMessage
     ) {}
+
+    // Simple response for home page images
+    public static class PlaceResponse {
+        private final Long id;
+        private final String name;
+        private final String imageUrl;
+        private final Double rating;
+        private final String category;
+        private Double distance = 0.0; // Default to 0 as per requirements
+
+        public PlaceResponse(Long id, String name, String imageUrl, Double rating, String category) {
+            this.id = id;
+            this.name = name;
+            this.imageUrl = imageUrl;
+            this.rating = rating;
+            this.category = category;
+        }
+
+        // Getters and setters
+        public Long getId() { return id; }
+        public String getName() { return name; }
+        public String getImageUrl() { return imageUrl; }
+        public Double getRating() { return rating; }
+        public String getCategory() { return category; }
+        public Double getDistance() { return distance; }
+        public void setDistance(Double distance) { this.distance = distance; }
+    }
 }

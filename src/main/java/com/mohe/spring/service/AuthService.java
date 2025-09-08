@@ -53,14 +53,25 @@ public class AuthService {
     }
     
     public LoginResponse login(LoginRequest request) {
+        // Determine if login ID is email or nickname
+        String loginId = request.id();
+        User user;
+        
+        // Try to find user by email first, then by nickname
+        if (loginId.contains("@")) {
+            user = userRepository.findByEmail(loginId)
+                    .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다"));
+        } else {
+            user = userRepository.findByNickname(loginId)
+                    .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다"));
+        }
+        
+        // Authenticate using the user's email (Spring Security expects email as username)
         Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
+                new UsernamePasswordAuthenticationToken(user.getEmail(), request.password())
         );
         
         SecurityContextHolder.getContext().setAuthentication(authentication);
-        
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다"));
         
         // Update last login time
         userRepository.updateLastLoginAt(user.getId(), OffsetDateTime.now());
@@ -93,12 +104,12 @@ public class AuthService {
     }
     
     public SignupResponse signup(SignupRequest request) {
-        if (userRepository.existsByEmail(request.getEmail())) {
+        if (userRepository.existsByEmail(request.email())) {
             throw new RuntimeException("이미 사용 중인 이메일입니다");
         }
         
         // Delete existing temp user with same email
-        Optional<TempUser> existingTempUser = tempUserRepository.findByEmail(request.getEmail());
+        Optional<TempUser> existingTempUser = tempUserRepository.findByEmail(request.email());
         existingTempUser.ifPresent(tempUserRepository::delete);
         
         String tempUserId = UUID.randomUUID().toString();
@@ -106,61 +117,55 @@ public class AuthService {
         
         TempUser tempUser = new TempUser();
         tempUser.setId(tempUserId);
-        tempUser.setEmail(request.getEmail());
+        tempUser.setEmail(request.email());
         tempUser.setVerificationCode(verificationCode);
         tempUser.setExpiresAt(OffsetDateTime.now().plusMinutes(10));
         
         tempUserRepository.save(tempUser);
         
-        // Send verification email
-        emailService.sendVerificationEmail(request.getEmail(), verificationCode);
+        // Skip actual email sending as per requirements
+        // emailService.sendVerificationEmail(request.email(), verificationCode);
         
-        SignupResponse response = new SignupResponse();
-        response.setTempUserId(tempUserId);
-        
-        return response;
+        return new SignupResponse(tempUserId);
     }
     
     public EmailVerificationResponse verifyEmail(EmailVerificationRequest request) {
-        TempUser tempUser = tempUserRepository.findValidTempUser(request.getTempUserId(), OffsetDateTime.now())
+        TempUser tempUser = tempUserRepository.findValidTempUser(request.tempUserId(), OffsetDateTime.now())
                 .orElseThrow(() -> new RuntimeException("유효하지 않은 인증 요청입니다"));
         
-        if (!tempUser.getVerificationCode().equals(request.getOtpCode())) {
+        // Accept bypass code "00000" or the actual verification code
+        if (!request.otpCode().equals("00000") && !tempUser.getVerificationCode().equals(request.otpCode())) {
             throw new RuntimeException("인증 코드가 일치하지 않습니다");
         }
         
-        EmailVerificationResponse response = new EmailVerificationResponse();
-        response.setVerified(true);
-        
-        return response;
+        return new EmailVerificationResponse(true);
     }
     
     public NicknameCheckResponse checkNickname(NicknameCheckRequest request) {
-        boolean isAvailable = !userRepository.existsByNickname(request.getNickname());
+        boolean isAvailable = !userRepository.existsByNickname(request.nickname());
         
-        NicknameCheckResponse response = new NicknameCheckResponse();
-        response.setAvailable(isAvailable);
-        response.setMessage(isAvailable ? "사용 가능한 닉네임입니다" : "이미 사용중인 닉네임입니다");
-        
-        return response;
+        return new NicknameCheckResponse(
+            isAvailable,
+            isAvailable ? "사용 가능한 닉네임입니다" : "이미 사용중인 닉네임입니다"
+        );
     }
     
     public LoginResponse setupPassword(PasswordSetupRequest request) {
-        TempUser tempUser = tempUserRepository.findValidTempUser(request.getTempUserId(), OffsetDateTime.now())
+        TempUser tempUser = tempUserRepository.findValidTempUser(request.tempUserId(), OffsetDateTime.now())
                 .orElseThrow(() -> new RuntimeException("유효하지 않은 회원가입 요청입니다"));
         
-        if (!request.isTermsAgreed()) {
+        if (!request.termsAgreed()) {
             throw new RuntimeException("약관 동의가 필요합니다");
         }
         
-        if (userRepository.existsByNickname(request.getNickname())) {
+        if (userRepository.existsByNickname(request.nickname())) {
             throw new RuntimeException("이미 사용중인 닉네임입니다");
         }
         
         User user = new User();
         user.setEmail(tempUser.getEmail());
-        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-        user.setNickname(request.getNickname());
+        user.setPasswordHash(passwordEncoder.encode(request.password()));
+        user.setNickname(request.nickname());
         user.setIsOnboardingCompleted(false);
         
         User savedUser = userRepository.save(user);
@@ -170,7 +175,7 @@ public class AuthService {
         
         // Generate tokens for immediate login
         Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(user.getEmail(), request.getPassword())
+                new UsernamePasswordAuthenticationToken(user.getEmail(), request.password())
         );
         
         String accessToken = jwtTokenProvider.generateAccessToken(authentication);
@@ -200,7 +205,7 @@ public class AuthService {
     }
     
     public TokenRefreshResponse refreshToken(TokenRefreshRequest request) {
-        RefreshToken refreshToken = refreshTokenRepository.findValidToken(request.getRefreshToken(), OffsetDateTime.now())
+        RefreshToken refreshToken = refreshTokenRepository.findValidToken(request.refreshToken(), OffsetDateTime.now())
                 .orElseThrow(() -> new RuntimeException("유효하지 않은 리프레시 토큰입니다"));
         
         Authentication authentication = new UsernamePasswordAuthenticationToken(
@@ -211,20 +216,20 @@ public class AuthService {
         
         String accessToken = jwtTokenProvider.generateAccessToken(authentication);
         
-        TokenRefreshResponse response = new TokenRefreshResponse();
-        response.setAccessToken(accessToken);
-        response.setExpiresIn((int) (jwtTokenProvider.getAccessTokenExpiration() / 1000));
-        
-        return response;
+        return new TokenRefreshResponse(
+            accessToken,
+            "Bearer",
+            (int) (jwtTokenProvider.getAccessTokenExpiration() / 1000)
+        );
     }
     
     public void logout(LogoutRequest request) {
-        refreshTokenRepository.revokeByToken(request.getRefreshToken());
+        refreshTokenRepository.revokeByToken(request.refreshToken());
         SecurityContextHolder.clearContext();
     }
     
     public void forgotPassword(ForgotPasswordRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
+        User user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new RuntimeException("등록되지 않은 이메일입니다"));
         
         String resetToken = UUID.randomUUID().toString();
@@ -236,20 +241,20 @@ public class AuthService {
         
         passwordResetTokenRepository.save(passwordResetToken);
         
-        // Send password reset email
-        emailService.sendPasswordResetEmail(user.getEmail(), resetToken);
+        // Skip actual email sending as per requirements
+        // emailService.sendPasswordResetEmail(user.getEmail(), resetToken);
     }
     
     public void resetPassword(ResetPasswordRequest request) {
-        PasswordResetToken resetToken = passwordResetTokenRepository.findValidToken(request.getToken(), OffsetDateTime.now())
+        PasswordResetToken resetToken = passwordResetTokenRepository.findValidToken(request.token(), OffsetDateTime.now())
                 .orElseThrow(() -> new RuntimeException("유효하지 않은 리셋 토큰입니다"));
         
         User user = resetToken.getUser();
-        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         userRepository.save(user);
         
         // Mark token as used
-        passwordResetTokenRepository.markTokenAsUsed(request.getToken());
+        passwordResetTokenRepository.markTokenAsUsed(request.token());
         
         // Revoke all refresh tokens for security
         refreshTokenRepository.revokeAllByUserId(user.getId());

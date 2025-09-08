@@ -11,10 +11,9 @@ public class AuthDto {
     // Login Request/Response
     @Schema(description = "로그인 요청")
     public record LoginRequest(
-        @Email(message = "올바른 이메일 형식이 아닙니다")
-        @NotBlank(message = "이메일은 필수입니다")
-        @Schema(description = "사용자 이메일", example = "user@example.com")
-        String email,
+        @NotBlank(message = "이메일 또는 ID는 필수입니다")
+        @Schema(description = "사용자 이메일 또는 ID", example = "user@example.com or admin")
+        String id,
         
         @NotBlank(message = "비밀번호는 필수입니다")
         @Schema(description = "사용자 비밀번호", example = "password123")

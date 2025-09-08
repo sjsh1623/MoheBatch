@@ -49,8 +49,8 @@ public class AuthController {
                           "data": {
                             "user": {
                               "id": "1",
-                              "email": "user@example.com",
-                              "nickname": "홍길동",
+                              "email": "admin@mohe.com",
+                              "nickname": "admin",
                               "isOnboardingCompleted": true,
                               "roles": ["ROLE_USER"]
                             },

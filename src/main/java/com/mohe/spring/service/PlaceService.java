@@ -1,11 +1,28 @@
 package com.mohe.spring.service;
 
 import com.mohe.spring.dto.*;
+import com.mohe.spring.entity.Place;
+import com.mohe.spring.entity.PlaceImage;
+import com.mohe.spring.repository.PlaceRepository;
+import com.mohe.spring.repository.PlaceImageRepository;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class PlaceService {
+    
+    private final PlaceRepository placeRepository;
+    private final PlaceImageRepository placeImageRepository;
+    
+    public PlaceService(PlaceRepository placeRepository, PlaceImageRepository placeImageRepository) {
+        this.placeRepository = placeRepository;
+        this.placeImageRepository = placeImageRepository;
+    }
     
     public PlaceRecommendationsResponse getRecommendations() {
         // TODO: Implement place recommendations logic
@@ -45,5 +62,47 @@ public class PlaceService {
     public PlaceListResponse getPlacesList(int page, int limit, String sort) {
         // TODO: Implement places list logic
         throw new UnsupportedOperationException("Places list not yet implemented");
+    }
+    
+    /**
+     * Get places with images for home page
+     */
+    public List<PlaceDto.PlaceResponse> getPlacesWithImages(int limit) {
+        Pageable pageable = PageRequest.of(0, limit);
+        
+        // Get places with highest ratings that have images
+        List<Place> places = placeRepository.findTopRatedPlaces(3.0, pageable).getContent();
+        
+        return places.stream()
+            .map(place -> {
+                // Get primary image or first available image
+                String imageUrl = getPlaceImageUrl(place);
+                
+                return new PlaceDto.PlaceResponse(
+                    place.getId(),
+                    place.getName() != null ? place.getName() : place.getTitle(),
+                    imageUrl,
+                    place.getRating() != null ? place.getRating().doubleValue() : 4.0,
+                    place.getCategory() != null ? place.getCategory() : "카테고리 없음"
+                );
+            })
+            .collect(Collectors.toList());
+    }
+    
+    private String getPlaceImageUrl(Place place) {
+        // First try to get primary image
+        Optional<PlaceImage> primaryImage = placeImageRepository.findByPlaceIdAndIsPrimaryTrue(place.getId());
+        if (primaryImage.isPresent()) {
+            return primaryImage.get().getImageUrl();
+        }
+        
+        // If no primary image, get first available image
+        List<PlaceImage> images = placeImageRepository.findByPlaceIdOrderByDisplayOrderAsc(place.getId());
+        if (!images.isEmpty()) {
+            return images.get(0).getImageUrl();
+        }
+        
+        // If no database images, return the place's imageUrl field as fallback
+        return place.getImageUrl();
     }
 }
