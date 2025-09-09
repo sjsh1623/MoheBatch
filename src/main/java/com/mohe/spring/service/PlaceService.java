@@ -2,9 +2,7 @@ package com.mohe.spring.service;
 
 import com.mohe.spring.dto.*;
 import com.mohe.spring.entity.Place;
-import com.mohe.spring.entity.PlaceImage;
 import com.mohe.spring.repository.PlaceRepository;
-import com.mohe.spring.repository.PlaceImageRepository;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -17,11 +15,8 @@ import java.util.stream.Collectors;
 public class PlaceService {
     
     private final PlaceRepository placeRepository;
-    private final PlaceImageRepository placeImageRepository;
-    
-    public PlaceService(PlaceRepository placeRepository, PlaceImageRepository placeImageRepository) {
+    public PlaceService(PlaceRepository placeRepository) {
         this.placeRepository = placeRepository;
-        this.placeImageRepository = placeImageRepository;
     }
     
     public PlaceRecommendationsResponse getRecommendations() {
@@ -70,18 +65,24 @@ public class PlaceService {
     public List<PlaceDto.PlaceResponse> getPlacesWithImages(int limit) {
         Pageable pageable = PageRequest.of(0, limit);
         
-        // Get places with highest ratings that have images
-        List<Place> places = placeRepository.findTopRatedPlaces(3.0, pageable).getContent();
+        // Get places with highest ratings that have at least 5 images
+        List<Place> places = placeRepository.findTopRatedPlacesWithImages(3.0, pageable).getContent();
         
         return places.stream()
             .map(place -> {
                 // Get primary image or first available image
                 String imageUrl = getPlaceImageUrl(place);
                 
+                // Get all images for this place - prioritize images array, fallback to single imageUrl
+                List<String> images = place.getImages() != null && !place.getImages().isEmpty() ? 
+                    place.getImages() : 
+                    (imageUrl != null ? List.of(imageUrl) : List.of());
+                
                 return new PlaceDto.PlaceResponse(
                     place.getId(),
                     place.getName() != null ? place.getName() : place.getTitle(),
                     imageUrl,
+                    images,
                     place.getRating() != null ? place.getRating().doubleValue() : 4.0,
                     place.getCategory() != null ? place.getCategory() : "카테고리 없음"
                 );
@@ -90,19 +91,12 @@ public class PlaceService {
     }
     
     private String getPlaceImageUrl(Place place) {
-        // First try to get primary image
-        Optional<PlaceImage> primaryImage = placeImageRepository.findByPlaceIdAndIsPrimaryTrue(place.getId());
-        if (primaryImage.isPresent()) {
-            return primaryImage.get().getImageUrl();
+        // First try to get from images array
+        if (place.getImages() != null && !place.getImages().isEmpty()) {
+            return place.getImages().get(0);
         }
         
-        // If no primary image, get first available image
-        List<PlaceImage> images = placeImageRepository.findByPlaceIdOrderByDisplayOrderAsc(place.getId());
-        if (!images.isEmpty()) {
-            return images.get(0).getImageUrl();
-        }
-        
-        // If no database images, return the place's imageUrl field as fallback
+        // If no images in array, return the place's imageUrl field as fallback
         return place.getImageUrl();
     }
 }

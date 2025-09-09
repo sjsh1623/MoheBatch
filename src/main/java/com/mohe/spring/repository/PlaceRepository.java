@@ -22,6 +22,9 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
     @Query("SELECT p FROM Place p WHERE p.rating >= :minRating ORDER BY p.rating DESC, p.reviewCount DESC")
     Page<Place> findTopRatedPlaces(@Param("minRating") Double minRating, Pageable pageable);
     
+    @Query(value = "SELECT * FROM places p WHERE p.rating >= :minRating AND array_length(p.images, 1) >= 5 ORDER BY p.rating DESC, p.review_count DESC", nativeQuery = true)
+    Page<Place> findTopRatedPlacesWithImages(@Param("minRating") Double minRating, Pageable pageable);
+    
     @Query("SELECT p FROM Place p ORDER BY p.popularity DESC, p.rating DESC")
     Page<Place> findPopularPlaces(Pageable pageable);
     

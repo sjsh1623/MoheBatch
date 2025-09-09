@@ -297,22 +297,30 @@ public class PlaceDto {
         private final Long id;
         private final String name;
         private final String imageUrl;
+        private final List<String> images;
         private final Double rating;
         private final String category;
         private Double distance = 0.0; // Default to 0 as per requirements
 
-        public PlaceResponse(Long id, String name, String imageUrl, Double rating, String category) {
+        public PlaceResponse(Long id, String name, String imageUrl, List<String> images, Double rating, String category) {
             this.id = id;
             this.name = name;
             this.imageUrl = imageUrl;
+            this.images = images != null ? images : List.of();
             this.rating = rating;
             this.category = category;
+        }
+        
+        // Backward compatibility constructor
+        public PlaceResponse(Long id, String name, String imageUrl, Double rating, String category) {
+            this(id, name, imageUrl, List.of(), rating, category);
         }
 
         // Getters and setters
         public Long getId() { return id; }
         public String getName() { return name; }
         public String getImageUrl() { return imageUrl; }
+        public List<String> getImages() { return images; }
         public Double getRating() { return rating; }
         public String getCategory() { return category; }
         public Double getDistance() { return distance; }
