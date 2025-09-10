@@ -58,6 +58,9 @@ class WebConfiguration(
 
         return WebClient.builder()
             .clientConnector(ReactorClientHttpConnector(httpClient))
+            .codecs { configurer ->
+                configurer.defaultCodecs().maxInMemorySize(1024 * 1024) // 1MB buffer for large government API responses
+            }
             .filter(logRequest())
             .filter(logResponse())
             .filter(errorHandler())

@@ -28,26 +28,56 @@ class ContinuousPlaceReader(
 
     private val logger = LoggerFactory.getLogger(ContinuousPlaceReader::class.java)
 
-    // MASSIVE Seoul coverage for 10,000+ places
-    private val locations = listOf(
-        // 서울특별시 (25개 구)
-        "강남구", "강동구", "강북구", "강서구", "관악구", "광진구", "구로구", "금천구",
-        "노원구", "도봉구", "동대문구", "동작구", "마포구", "서대문구", "서초구", "성동구",
-        "성북구", "송파구", "양천구", "영등포구", "용산구", "은평구", "종로구", "중구", "중랑구",
-
-        // 경기도 (31개 시·군)
-        "가평군", "고양시", "과천시", "광명시", "광주시", "구리시", "군포시", "김포시",
-        "남양주시", "동두천시", "부천시", "성남시", "수원시", "시흥시", "안산시", "안성시",
-        "안양시", "양주시", "양평군", "여주시", "연천군", "오산시", "용인시", "의왕시",
-        "의정부시", "이천시", "파주시", "평택시", "포천시", "하남시", "화성시",
-
-        // 부산광역시 (16개 구·군)
-        "강서구", "금정구", "남구", "동구", "동래구", "부산진구", "북구", "사상구", "사하구",
-        "서구", "수영구", "연제구", "영도구", "중구", "해운대구", "기장군",
-
-        // 제주특별자치도 (2개 시)
-        "제주시", "서귀포시"
-    )
+    // Dynamic locations from Korean Government API (loaded at runtime)
+    private var locations: List<String> = emptyList()
+    
+    private fun initializeLocationsFromGovernmentAPI() {
+        if (locations.isEmpty()) {
+            logger.info("🏛️ Loading locations dynamically from Korean Government API via MoheSpring backend...")
+            try {
+                // Fetch location names from MoheSpring Korean government API endpoint
+                val response = webClient.get()
+                    .uri { builder ->
+                        builder
+                            .scheme("http")
+                            .host("mohe-backend")  // Docker service name
+                            .port(8080)
+                            .path("/api/korean-regions/search-locations")
+                            .build()
+                    }
+                    .retrieve()
+                    .bodyToMono(String::class.java)
+                    .block(Duration.ofSeconds(30))
+                
+                // Parse the JSON response to extract the location names array
+                if (response != null && response.contains("\"success\":true")) {
+                    // Extract the data array from {"success":true,"data":["location1","location2",...]}
+                    val dataStart = response.indexOf("\"data\":[") + 8
+                    val dataEnd = response.indexOf("]", dataStart) + 1
+                    val dataArray = response.substring(dataStart - 8, dataEnd)
+                    
+                    // Simple parsing - extract location names between quotes
+                    locations = Regex("\"([^\"]+)\"").findAll(dataArray)
+                        .map { it.groupValues[1] }
+                        .filter { it != "data" && it.isNotBlank() }
+                        .distinct()
+                        .toList()
+                } else {
+                    throw Exception("Invalid response format from MoheSpring Korean regions API")
+                }
+                
+                logger.info("✅ Loaded ${locations.size} unique Korean administrative locations from MoheSpring backend")
+                logger.info("🎯 Sample locations: ${locations.take(10).joinToString(", ")}")
+            } catch (e: Exception) {
+                logger.error("❌ Failed to load locations from MoheSpring Korean Government API, falling back to hardcoded list: ${e.message}")
+                // Fallback to a minimal set if API fails
+                locations = listOf(
+                    "강남구", "강서구", "송파구", "마포구", "용산구", 
+                    "부산진구", "해운대구", "제주시", "서귀포시"
+                )
+            }
+        }
+    }
     private val queries = listOf(
         "카페", "레스토랑", "음식점", "한식당", "중식당", "일식당", "양식당", "이탈리안", "분식", "치킨",
         "피자", "햄버거", "베이커리", "디저트", "아이스크림", "떡볶이", "순대", "족발", "보쌈", "곱창",
@@ -73,8 +103,8 @@ class ContinuousPlaceReader(
     override fun read(): EnrichedPlace? {
         val currentTime = System.currentTimeMillis()
         
-        // Reset for new job execution
-        if (readCount == 0 || (currentTime - lastJobTime) > 8000) {
+        // Reset ONLY for new job execution (detect by large time gap)
+        if (readCount == 0 && (lastJobTime == 0L || (currentTime - lastJobTime) > 60000)) {
             resetState()
             lastJobTime = currentTime
         }
@@ -107,14 +137,18 @@ class ContinuousPlaceReader(
     }
     
     private fun resetState() {
-        logger.error("🔄 RESET STATE FOR CONTINUOUS OPERATION")
+        logger.error("🔄 RESET STATE FOR NEW JOB EXECUTION")
         currentBatch.clear()
         currentIndex = 0
-        readCount = 0
-        initialized = false
+        readCount = 0  // Reset for new job execution
+        // DON'T reset initialized, locationIndex, queryIndex, or pageIndex
+        // This preserves progress through locations and queries
     }
     
     private fun initialize() {
+        // Load Korean administrative regions dynamically (temporary, not saved)
+        initializeLocationsFromGovernmentAPI()
+        
         initialized = true
         logger.error("🚀 CONTINUOUS API READER INITIALIZED")
         logger.error("📊 LOCATIONS: ${locations.size}, QUERIES: ${queries.size}")

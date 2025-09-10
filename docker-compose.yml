@@ -1,46 +1,30 @@
 version: '3.8'
 
 services:
-  # PostgreSQL database (shared with MoheSpring)
-  postgres:
-    image: postgres:15-alpine
-    container_name: mohe-postgres-shared
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-mohe_db}
-      POSTGRES_USER: ${POSTGRES_USER:-mohe_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mohe_password}
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./docker/postgres/init-scripts:/docker-entrypoint-initdb.d
-    networks:
-      - mohe-batch-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mohe_user} -d ${POSTGRES_DB:-mohe_db}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+  # NOTE: Using main MoheSpring database instead of separate database
+  # PostgreSQL database (shared with MoheSpring) - DISABLED
+  # postgres:
+  #   image: postgres:15-alpine
+  #   container_name: mohe-postgres-shared
+  #   environment:
+  #     POSTGRES_DB: ${POSTGRES_DB:-mohe_db}
+  #     POSTGRES_USER: ${POSTGRES_USER:-mohe_user}
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mohe_password}
+  #   ports:
+  #     - "5433:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #     - ./docker/postgres/init-scripts:/docker-entrypoint-initdb.d
+  #   networks:
+  #     - mohe-batch-network
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mohe_user} -d ${POSTGRES_DB:-mohe_db}"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
 
-  # Mock external API for testing
-  mock-api:
-    image: wiremock/wiremock:2.35.0
-    container_name: mohe-batch-mock-api
-    command: ["--global-response-templating", "--port", "8080"]
-    ports:
-      - "${MOCK_API_PORT:-3000}:8080"
-    volumes:
-      - ./docker/wiremock/mappings:/home/wiremock/mappings
-      - ./docker/wiremock/__files:/home/wiremock/__files
-    networks:
-      - mohe-batch-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/__admin/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+  
 
   # MoheBatch web server
   mohebatch-web:
@@ -49,13 +33,16 @@ services:
       dockerfile: Dockerfile
     container_name: mohe-batch-web
     environment:
-      # Database configuration (shared with MoheSpring)
-      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-mohe_db}
+      # Database configuration (connect to main MoheSpring database)
+      DATABASE_URL: jdbc:postgresql://mohe-postgres:5432/${POSTGRES_DB:-mohe_db}
       DATABASE_USERNAME: ${POSTGRES_USER:-mohe_user}
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-mohe_password}
       
-      # External API configuration
-      EXTERNAL_API_BASE_URL: http://mock-api:8080
+      # External API configuration - Real APIs
+      EXTERNAL_API_BASE_URL: https://openapi.naver.com
+      NAVER_CLIENT_ID: ${NAVER_CLIENT_ID}
+      NAVER_CLIENT_SECRET: ${NAVER_CLIENT_SECRET}
+      GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY}
       EXTERNAL_API_PAGE_SIZE: ${API_PAGE_SIZE:-100}
       EXTERNAL_API_MAX_PAGES: ${API_MAX_PAGES:-10}
       EXTERNAL_API_TIMEOUT: ${API_TIMEOUT:-30}
@@ -81,15 +68,11 @@ services:
       # Logging
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     ports:
-      - "${WEB_PORT:-8080}:8080"
+      - "8081:8080"
       - "${WEB_MANAGEMENT_PORT:-8081}:8081"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      mock-api:
-        condition: service_healthy
     networks:
       - mohe-batch-network
+      - mohe_mohe-network  # Connect to main MoheSpring network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
@@ -105,13 +88,16 @@ services:
       dockerfile: Dockerfile
     container_name: mohe-batch-processor
     environment:
-      # Database configuration (shared with MoheSpring)
-      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-mohe_db}
+      # Database configuration (connect to main MoheSpring database)
+      DATABASE_URL: jdbc:postgresql://mohe-postgres:5432/${POSTGRES_DB:-mohe_db}
       DATABASE_USERNAME: ${POSTGRES_USER:-mohe_user}
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-mohe_password}
       
-      # External API configuration
-      EXTERNAL_API_BASE_URL: http://mock-api:8080
+      # External API configuration - Real APIs
+      EXTERNAL_API_BASE_URL: https://openapi.naver.com
+      NAVER_CLIENT_ID: ${NAVER_CLIENT_ID}
+      NAVER_CLIENT_SECRET: ${NAVER_CLIENT_SECRET}
+      GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY}
       EXTERNAL_API_PAGE_SIZE: ${API_PAGE_SIZE:-100}
       EXTERNAL_API_MAX_PAGES: ${API_MAX_PAGES:-10}
       EXTERNAL_API_TIMEOUT: ${API_TIMEOUT:-30}
@@ -143,13 +129,9 @@ services:
     ports:
       - "${BATCH_PORT:-8082}:8080"
       - "${BATCH_MANAGEMENT_PORT:-8083}:8081"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      mock-api:
-        condition: service_healthy
     networks:
       - mohe-batch-network
+      - mohe_mohe-network  # Connect to main MoheSpring network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
@@ -206,3 +188,5 @@ volumes:
 networks:
   mohe-batch-network:
     driver: bridge
+  mohe_mohe-network:
+    external: true  # Connect to existing MoheSpring network

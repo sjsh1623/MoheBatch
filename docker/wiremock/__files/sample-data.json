@@ -1,8 +1,0 @@
-{
-  "FIRST_NAME": ["John", "Jane", "Michael", "Sarah", "David", "Lisa", "Robert", "Mary", "James", "Jennifer"],
-  "LAST_NAME": ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez"],
-  "DEPARTMENT": ["Engineering", "Marketing", "Sales", "HR", "Finance", "Operations", "Support", "Legal", "Research", "Design"],
-  "STATUS": ["active", "inactive", "pending", "suspended"],
-  "EMAIL": ["example.com", "test.org", "sample.net", "demo.com", "mock.io"],
-  "UUID": []
-}

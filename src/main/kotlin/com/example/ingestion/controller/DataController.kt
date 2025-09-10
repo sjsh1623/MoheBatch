@@ -254,6 +254,42 @@ class DataController(
         }
     }
 
+    @PostMapping("/batch/trigger/government-data-ingestion")
+    @Operation(
+        summary = "Trigger Korean government data ingestion job",
+        description = "Manually trigger the Korean government data ingestion batch job"
+    )
+    @ApiResponse(responseCode = "202", description = "Government data job triggered successfully")
+    @ApiResponse(responseCode = "500", description = "Failed to trigger government data job")
+    fun triggerGovernmentDataIngestionJob(): ResponseEntity<Map<String, Any>> {
+        logger.info("POST /api/data/batch/trigger/government-data-ingestion")
+        
+        return try {
+            val jobParametersBuilder = JobParametersBuilder()
+                .addLong("timestamp", System.currentTimeMillis())
+            
+            val jobExecution = jobLauncher.run(regionalPlaceIngestionJob, jobParametersBuilder.toJobParameters())
+            
+            val response = mapOf(
+                "message" to "Korean government data ingestion job triggered successfully",
+                "job_execution_id" to jobExecution.id,
+                "job_instance_id" to jobExecution.jobInstance.id,
+                "status" to jobExecution.status.toString()
+            )
+            
+            ResponseEntity.status(HttpStatus.ACCEPTED).body(response)
+        } catch (ex: Exception) {
+            logger.error("Failed to trigger government data ingestion job: ${ex.message}", ex)
+            
+            val errorResponse = mapOf(
+                "error" to "Failed to trigger government data ingestion job",
+                "message" to (ex.message ?: "Unknown error")
+            )
+            
+            ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse)
+        }
+    }
+
     @PostMapping("/batch/continuous/start")
     @Operation(
         summary = "Start continuous batch processing",

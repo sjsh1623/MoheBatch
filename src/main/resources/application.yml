@@ -22,7 +22,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: none  # Don't validate or create schema - using existing MoheSpring schema
     show-sql: ${JPA_SHOW_SQL:false}
     properties:
       hibernate:
@@ -39,9 +39,9 @@ spring:
           use_jdbc_metadata_defaults: false
 
   flyway:
-    enabled: true
+    enabled: false  # Disable Flyway - using existing MoheSpring database schema
     baseline-on-migrate: true
-    validate-on-migrate: true
+    validate-on-migrate: false
 
   batch:
     job:
@@ -56,7 +56,7 @@ spring:
 app:
   external:
     api:
-      base-url: ${EXTERNAL_API_BASE_URL:http://mock-api:8080}
+      base-url: ${EXTERNAL_API_BASE_URL:https://openapi.naver.com}
       timeout: ${EXTERNAL_API_TIMEOUT:30}
     naver:
       base-url: https://openapi.naver.com/v1/search/local.json
@@ -232,6 +232,19 @@ app:
       cron: ${APP_BATCH_SCHEDULING_CRON:0 */30 * * * ?}
     continuous:
       enabled: ${APP_BATCH_CONTINUOUS_ENABLED:false}
+    image-generation:
+      cli:
+        command: ${GEMINI_CLI_CMD:gemini}
+        args-template: ${GEMINI_CLI_ARGS_TPL:image:generate -p "{PROMPT}" -o "{OUTPUT}"}
+        image-size: ${GEMINI_IMAGE_SIZE:1024x1024}
+      publish:
+        root-dir: ${PUBLISH_ROOT_DIR:/tmp/static}
+        base-path: ${PUBLISH_BASE_PATH:/images/places}
+      retry:
+        max-attempts: 5
+        initial-backoff-ms: ${BACKOFF_INITIAL_MS:30000}
+        max-backoff-ms: ${BACKOFF_MAX_MS:600000}
+      concurrency: ${MAX_CONCURRENCY:4}
 
 logging:
   level:

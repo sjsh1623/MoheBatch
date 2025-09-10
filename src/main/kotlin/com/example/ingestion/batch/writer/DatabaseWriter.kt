@@ -47,13 +47,14 @@ class MoheSpringApiWriter(
             meterRegistry.counter("batch_database_updates").increment(response.updatedCount.toDouble())
             meterRegistry.counter("batch_items_skipped").increment(response.skippedCount.toDouble())
             meterRegistry.counter("batch_keywords_generated").increment(response.keywordGeneratedCount.toDouble())
+            meterRegistry.counter("batch_images_fetched").increment(response.imagesFetchedCount.toDouble())
             
             if (response.errorCount > 0) {
                 logger.warn("MoheSpring API reported ${response.errorCount} errors: ${response.errors}")
                 meterRegistry.counter("batch_api_write_errors").increment(response.errorCount.toDouble())
             }
             
-            logger.info("Successfully sent chunk to MoheSpring API: ${response.insertedCount} inserted, ${response.updatedCount} updated, ${response.skippedCount} skipped, ${response.errorCount} errors")
+            logger.info("Successfully sent chunk to MoheSpring API: ${response.insertedCount} inserted, ${response.updatedCount} updated, ${response.skippedCount} skipped, ${response.errorCount} errors, ${response.imagesFetchedCount} images fetched")
             
         } catch (ex: Exception) {
             logger.error("Failed to send chunk to MoheSpring API: ${ex.message}", ex)
@@ -172,5 +173,6 @@ data class InternalPlaceIngestResponse(
     val skippedCount: Int,
     val errorCount: Int,
     val keywordGeneratedCount: Int,
+    val imagesFetchedCount: Int, // New: count of images fetched from Google Places
     val errors: List<String>
 )

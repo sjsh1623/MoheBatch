@@ -27,7 +27,6 @@ class RegionalPlaceEnrichmentProcessor(
     @Value("\${OLLAMA_TEXT_MODEL:gpt-oss:20b}") private val textModel: String,
     @Value("\${OLLAMA_EMBEDDING_MODEL:mxbai-embed-large:latest}") private val embeddingModel: String,
     @Value("\${OLLAMA_TIMEOUT:120}") private val ollamaTimeout: Int,
-    @Value("\${app.external.google.api-key}") private val googleApiKey: String
 ) : ItemProcessor<EnrichedPlace, ProcessedPlace> {
 
     private val logger = LoggerFactory.getLogger(RegionalPlaceEnrichmentProcessor::class.java)
@@ -77,8 +76,8 @@ class RegionalPlaceEnrichmentProcessor(
                 priceLevel = item.googlePlace?.priceLevel,
                 types = combineTypes(item),
                 openingHours = item.googlePlace?.openingHours?.let { objectMapper.writeValueAsString(it) },
-                imageUrl = item.googlePhotoUrl ?: extractImageFromNaver(item.naverPlace),
-                images = collectMultipleImages(item),
+                imageUrl = null,
+                images = null,
                 sourceFlags = mapOf(
                     "hasNaverData" to true,
                     "hasGoogleData" to (item.googlePlace != null),
@@ -607,49 +606,6 @@ class RegionalPlaceEnrichmentProcessor(
         return null // Naver Local API typically doesn't provide phone numbers directly
     }
 
-    private fun extractImageFromNaver(naverPlace: NaverPlaceItem): String? {
-        // Extract image URL from Naver place data
-        return naverPlace.link?.takeIf { it.isNotBlank() }
-    }
-
-    private fun collectMultipleImages(item: EnrichedPlace): List<String> {
-        val imageUrls = mutableListOf<String>()
-        
-        try {
-            // Collect multiple images from Google Places API
-            item.googlePlace?.photos?.let { photos ->
-                // Take 3-10 photos (user requested minimum 3, maximum 10)
-                val photoCount = minOf(10, maxOf(3, photos.size))
-                
-                logger.debug("Collecting $photoCount images from ${photos.size} available photos for ${item.naverPlace.cleanTitle}")
-                
-                photos.take(photoCount).forEach { photo ->
-                    try {
-                        val photoUrl = "https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${photo.photoReference}&key=${googleApiKey}"
-                        imageUrls.add(photoUrl)
-                        logger.debug("Added photo URL for ${item.naverPlace.cleanTitle}: $photoUrl")
-                    } catch (e: Exception) {
-                        logger.warn("Failed to build photo URL for ${item.naverPlace.cleanTitle}: ${e.message}")
-                    }
-                }
-            }
-            
-            // If we don't have enough Google Photos, try to add Naver image
-            if (imageUrls.size < 3) {
-                extractImageFromNaver(item.naverPlace)?.let { naverImage ->
-                    imageUrls.add(naverImage)
-                    logger.debug("Added Naver image to reach minimum count: $naverImage")
-                }
-            }
-            
-            logger.debug("Collected ${imageUrls.size} images for ${item.naverPlace.cleanTitle}")
-            
-        } catch (e: Exception) {
-            logger.warn("Failed to collect multiple images for ${item.naverPlace.cleanTitle}: ${e.message}")
-        }
-        
-        return imageUrls.distinct() // Remove duplicates
-    }
 
     private fun parseNaverRating(naverPlace: NaverPlaceItem): Double? {
         // Try to extract rating from Naver data if available
@@ -675,15 +631,28 @@ class RegionalPlaceEnrichmentProcessor(
     // Simple in-memory duplicate tracking (resets per job execution)
     companion object {
         private val processedPlaces = mutableSetOf<String>()
+        private var lastClearTime: Long = 0
+        
+        // Clear cache periodically to allow reprocessing
+        fun clearCacheIfNeeded() {
+            val currentTime = System.currentTimeMillis()
+            if (currentTime - lastClearTime > 30000) { // Clear every 30 seconds
+                processedPlaces.clear()
+                lastClearTime = currentTime
+                println("🔄 CLEARED PROCESSED PLACES CACHE - SIZE WAS: ${processedPlaces.size}")
+            }
+        }
     }
     
     private fun isRecentlyProcessed(identifier: String): Boolean {
-        return processedPlaces.contains(identifier)
+        // Clear cache periodically to allow fresh data
+        clearCacheIfNeeded()
+        return false // TEMPORARILY DISABLE duplicate detection to allow all data through
     }
     
     private fun markAsProcessed(identifier: String) {
+        clearCacheIfNeeded()
         processedPlaces.add(identifier)
-        // No limit - allow unlimited data storage
     }
 }
 
