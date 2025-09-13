@@ -5,6 +5,8 @@ server:
 spring:
   application:
     name: MoheBatch
+  main:
+    allow-bean-definition-overriding: true
   
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/mohe_db}

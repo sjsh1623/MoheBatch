@@ -1,0 +1,224 @@
+package com.example.ingestion.service
+
+import com.fasterxml.jackson.databind.ObjectMapper
+import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
+import org.springframework.stereotype.Service
+import org.springframework.web.reactive.function.client.WebClient
+import org.springframework.web.reactive.function.client.WebClientResponseException
+import org.springframework.web.reactive.function.client.bodyToMono
+import reactor.core.publisher.Mono
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.nio.file.StandardCopyOption
+import java.time.Duration
+
+@Service
+class GooglePlacesPhotosService(
+    private val webClient: WebClient,
+    private val objectMapper: ObjectMapper,
+    @Value("\${app.google.api-key}") private val apiKey: String
+) {
+    
+    private val logger = LoggerFactory.getLogger(javaClass)
+    
+    /**
+     * Retrieves place photo using New Google Places Photos API
+     * Primary endpoint: GET https://places.googleapis.com/v1/{name=places/*/photos/*}/media
+     * 
+     * @param photoName The photo name from places.photos.name field (e.g. "places/ChIJ...")
+     * @param maxWidth Maximum width in pixels
+     * @return Downloaded photo file path or null if failed
+     */
+    fun downloadPlacePhoto(photoName: String, maxWidth: Int = 1024): String? {
+        return try {
+            logger.info("Attempting to download photo from Google Places API: {}", photoName)
+            
+            val url = "https://places.googleapis.com/v1/$photoName/media"
+            
+            val response = webClient.get()
+                .uri { builder ->
+                    builder.path(url.removePrefix("https://places.googleapis.com/v1"))
+                        .queryParam("maxWidthPx", maxWidth)
+                        .queryParam("key", apiKey)
+                        .build()
+                }
+                .retrieve()
+                .bodyToMono<ByteArray>()
+                .timeout(Duration.ofSeconds(30))
+                .block()
+                
+            if (response != null && response.isNotEmpty()) {
+                // Save to temporary file
+                val tempFile = Files.createTempFile("google_photo_", ".jpg")
+                Files.write(tempFile, response)
+                tempFile.toAbsolutePath().toString()
+            } else {
+                logger.warn("Empty response from Google Places Photos API for: {}", photoName)
+                null
+            }
+            
+        } catch (e: WebClientResponseException) {
+            when (e.statusCode.value()) {
+                429 -> {
+                    logger.warn("Quota exceeded for Google Places Photos API: {}", photoName)
+                    throw QuotaExceededException("Google Places Photos API quota exceeded: ${e.message}")
+                }
+                403 -> {
+                    logger.warn("API key invalid or permissions denied: {}", photoName)
+                    return null
+                }
+                404 -> {
+                    logger.debug("Photo not found: {}", photoName)
+                    return null
+                }
+                else -> {
+                    logger.warn("Google Places Photos API error ({}): {}", e.statusCode, photoName, e)
+                    // Try fallback API if primary fails
+                    return downloadPlacePhotoFallback(photoName, maxWidth)
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to download photo from Google Places Photos API: {}", photoName, e)
+            
+            // Try fallback API if primary fails
+            downloadPlacePhotoFallback(photoName, maxWidth)
+        }
+    }
+    
+    /**
+     * Fallback method using legacy Google Places Photo API
+     * GET https://maps.googleapis.com/maps/api/place/photo?photo_reference={PHOTO_REF}&maxwidth={W}&key={API_KEY}
+     * 
+     * @param photoReference The photo reference string
+     * @param maxWidth Maximum width in pixels  
+     * @return Downloaded photo file path or null if failed
+     */
+    fun downloadPlacePhotoFallback(photoReference: String, maxWidth: Int = 1024): String? {
+        return try {
+            logger.info("Attempting to download photo using fallback API: {}", photoReference)
+            
+            val response = webClient.get()
+                .uri("https://maps.googleapis.com/maps/api/place/photo") { builder ->
+                    builder.queryParam("photo_reference", photoReference)
+                        .queryParam("maxwidth", maxWidth)
+                        .queryParam("key", apiKey)
+                        .build()
+                }
+                .retrieve()
+                .bodyToMono<ByteArray>()
+                .timeout(Duration.ofSeconds(30))
+                .block()
+                
+            if (response != null && response.isNotEmpty()) {
+                // Save to temporary file
+                val tempFile = Files.createTempFile("google_photo_fallback_", ".jpg")
+                Files.write(tempFile, response)
+                tempFile.toAbsolutePath().toString()
+            } else {
+                logger.warn("Empty response from fallback Google Places Photos API for: {}", photoReference)
+                null
+            }
+            
+        } catch (e: WebClientResponseException) {
+            when (e.statusCode.value()) {
+                429 -> {
+                    logger.warn("Quota exceeded for fallback Google Places Photos API: {}", photoReference)
+                    throw QuotaExceededException("Fallback Google Places Photos API quota exceeded: ${e.message}")
+                }
+                403 -> {
+                    logger.warn("API key invalid or permissions denied (fallback): {}", photoReference)
+                    return null
+                }
+                404 -> {
+                    logger.debug("Photo not found (fallback): {}", photoReference)
+                    return null
+                }
+                else -> {
+                    logger.warn("Fallback Google Places Photos API error ({}): {}", e.statusCode, photoReference, e)
+                    return null
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to download photo from fallback Google Places Photos API: {}", photoReference, e)
+            null
+        }
+    }
+    
+    /**
+     * Extract photo references from Google data in place entity
+     * This looks for photo information in the googleData field
+     */
+    fun extractPhotoReferences(googleData: Map<String, Any>?): List<String> {
+        if (googleData == null) return emptyList()
+        
+        return try {
+            // Look for photos array in various possible locations
+            val photos = when {
+                googleData["photos"] is List<*> -> googleData["photos"] as List<*>
+                googleData["result"] is Map<*, *> -> {
+                    val result = googleData["result"] as Map<*, *>
+                    result["photos"] as? List<*> ?: emptyList<Any>()
+                }
+                else -> emptyList<Any>()
+            }
+            
+            photos.mapNotNull { photo ->
+                when (photo) {
+                    is Map<*, *> -> {
+                        // Try to get photo_reference or name
+                        photo["photo_reference"] as? String 
+                            ?: photo["name"] as? String
+                    }
+                    else -> null
+                }
+            }
+            
+        } catch (e: Exception) {
+            logger.warn("Failed to extract photo references from Google data", e)
+            emptyList()
+        }
+    }
+    
+    /**
+     * Move temporary file to final destination with proper naming
+     */
+    fun moveToFinalLocation(tempFilePath: String, placeId: Long, placeName: String, targetDir: Path): String? {
+        return try {
+            val sanitizedName = sanitizePlaceName(placeName)
+            val fileName = "${placeId}__${sanitizedName}.jpg"
+            val finalPath = targetDir.resolve(fileName)
+            
+            // Ensure target directory exists
+            Files.createDirectories(targetDir)
+            
+            // Move file
+            Files.move(Paths.get(tempFilePath), finalPath, StandardCopyOption.REPLACE_EXISTING)
+            
+            finalPath.toAbsolutePath().toString()
+            
+        } catch (e: Exception) {
+            logger.error("Failed to move photo to final location: {}", tempFilePath, e)
+            null
+        }
+    }
+    
+    /**
+     * Sanitize place name for filename usage
+     * Replace whitespace/special chars with _, max length ~80 chars
+     */
+    private fun sanitizePlaceName(placeName: String): String {
+        return placeName
+            .replace(Regex("[\\s\\W]+"), "_")
+            .replace(Regex("_+"), "_")
+            .trim('_')
+            .take(80)
+            .ifEmpty { "unnamed" }
+    }
+}
+
+/**
+ * Exception thrown when Google API quota is exceeded
+ */
+class QuotaExceededException(message: String) : RuntimeException(message)

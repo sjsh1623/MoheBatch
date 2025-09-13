@@ -40,7 +40,7 @@ class PlaceEnrichmentProcessor(
                 priceLevel = item.googlePlace?.priceLevel,
                 types = item.googlePlace?.types ?: listOf(item.naverPlace.category),
                 openingHours = item.googlePlace?.openingHours?.let { serializeOpeningHours(it) },
-                imageUrl = item.googlePhotoUrl,
+                gallery = if (item.googlePhotoUrl != null) listOf(item.googlePhotoUrl) else emptyList(),
                 sourceFlags = buildSourceFlags(item),
                 naverRawData = objectMapper.writeValueAsString(item.naverPlace),
                 googleRawData = item.googlePlace?.let { objectMapper.writeValueAsString(it) }

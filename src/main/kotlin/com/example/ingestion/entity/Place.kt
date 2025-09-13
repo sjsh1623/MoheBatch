@@ -52,6 +52,10 @@ data class Place(
     @Column(name = "image_url")
     var imageUrl: String? = null,
 
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "gallery", columnDefinition = "text[]")
+    var gallery: List<String> = mutableListOf(),
+
     @Column(name = "updated_at", nullable = false, updatable = false, insertable = false)
     var updatedAt: LocalDateTime? = null
 )

@@ -19,6 +19,7 @@ data class ProcessedPlace(
     val priceLevel: Int?,
     val types: List<String>,
     val openingHours: String?, // JSON string
+    val gallery: List<String> = emptyList(), // Image URLs
     val sourceFlags: Map<String, Any>,
     val naverRawData: String, // JSON string
     val googleRawData: String?, // JSON string

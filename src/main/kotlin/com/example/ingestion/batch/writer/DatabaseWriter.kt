@@ -83,7 +83,7 @@ class MoheSpringApiWriter(
             priceLevel = processedPlace.priceLevel,
             types = processedPlace.types,
             openingHours = processedPlace.openingHours,
-            imageUrl = processedPlace.imageUrl,
+            gallery = processedPlace.gallery,
             sourceFlags = processedPlace.sourceFlags,
             naverRawData = processedPlace.naverRawData,
             googleRawData = processedPlace.googleRawData,
@@ -153,7 +153,7 @@ data class InternalPlaceIngestRequest(
     val priceLevel: Int?,
     val types: List<String>,
     val openingHours: String?, // JSON string
-    val imageUrl: String?,
+    val gallery: List<String> = emptyList(),
     val sourceFlags: Map<String, Any>,
     val naverRawData: String, // JSON string
     val googleRawData: String?, // JSON string

@@ -76,8 +76,7 @@ class RegionalPlaceEnrichmentProcessor(
                 priceLevel = item.googlePlace?.priceLevel,
                 types = combineTypes(item),
                 openingHours = item.googlePlace?.openingHours?.let { objectMapper.writeValueAsString(it) },
-                imageUrl = null,
-                images = null,
+                gallery = emptyList(),
                 sourceFlags = mapOf(
                     "hasNaverData" to true,
                     "hasGoogleData" to (item.googlePlace != null),
