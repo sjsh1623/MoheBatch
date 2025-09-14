@@ -28,7 +28,6 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
     Page<Place> findPopularPlaces(Pageable pageable);
     
     @Query("SELECT p FROM Place p WHERE " +
-           "LOWER(p.title) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
            "LOWER(p.name) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
            "LOWER(p.description) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
            "LOWER(p.address) LIKE LOWER(CONCAT('%', :query, '%'))")
@@ -182,4 +181,44 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
         @Param("categories") List<String> categories,
         Pageable pageable
     );
+
+    /**
+     * Find nearby places ordered by distance (for LLM recommendations)
+     */
+    @Query(value = """
+        SELECT p.* FROM places p
+        WHERE p.latitude IS NOT NULL AND p.longitude IS NOT NULL
+        AND (p.rating >= 3.0 OR p.is_new_place = true)
+        AND (
+            6371 * acos(
+                cos(radians(:latitude)) * cos(radians(CAST(p.latitude AS DOUBLE PRECISION))) *
+                cos(radians(CAST(p.longitude AS DOUBLE PRECISION)) - radians(:longitude)) +
+                sin(radians(:latitude)) * sin(radians(CAST(p.latitude AS DOUBLE PRECISION)))
+            )
+        ) <= :distance
+        ORDER BY (
+            6371 * acos(
+                cos(radians(:latitude)) * cos(radians(CAST(p.latitude AS DOUBLE PRECISION))) *
+                cos(radians(CAST(p.longitude AS DOUBLE PRECISION)) - radians(:longitude)) +
+                sin(radians(:latitude)) * sin(radians(CAST(p.latitude AS DOUBLE PRECISION)))
+            )
+        ) ASC
+        LIMIT :limit
+    """, nativeQuery = true)
+    List<Place> findNearbyPlacesForLLM(
+        @Param("latitude") Double latitude,
+        @Param("longitude") Double longitude,
+        @Param("distance") Double distance,
+        @Param("limit") int limit
+    );
+
+    /**
+     * Find general places for LLM recommendations (when no location provided)
+     */
+    @Query("""
+        SELECT p FROM Place p
+        WHERE (p.rating >= 3.0 OR p.isNewPlace = true)
+        ORDER BY p.rating DESC, p.reviewCount DESC
+    """)
+    List<Place> findGeneralPlacesForLLM(Pageable pageable);
 }

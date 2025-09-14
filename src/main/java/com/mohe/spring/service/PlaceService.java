@@ -3,6 +3,8 @@ package com.mohe.spring.service;
 import com.mohe.spring.dto.*;
 import com.mohe.spring.entity.Place;
 import com.mohe.spring.repository.PlaceRepository;
+import com.mohe.spring.repository.BookmarkRepository;
+import com.mohe.spring.service.LlmService;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Page;
@@ -20,10 +22,14 @@ public class PlaceService {
     
     private final PlaceRepository placeRepository;
     private final VectorSearchService vectorSearchService;
-    
-    public PlaceService(PlaceRepository placeRepository, VectorSearchService vectorSearchService) {
+    private final BookmarkRepository bookmarkRepository;
+    private final LlmService llmService;
+
+    public PlaceService(PlaceRepository placeRepository, VectorSearchService vectorSearchService, BookmarkRepository bookmarkRepository, LlmService llmService) {
         this.placeRepository = placeRepository;
         this.vectorSearchService = vectorSearchService;
+        this.bookmarkRepository = bookmarkRepository;
+        this.llmService = llmService;
     }
     
     public PlaceRecommendationsResponse getRecommendations() {
@@ -238,19 +244,21 @@ public class PlaceService {
     
     public CurrentTimeRecommendationsResponse getCurrentTimePlaces(Double latitude, Double longitude, int limit) {
         try {
-            List<Place> places;
-            
-            // If location is provided, find nearby places within 20km
+            // Get 30 nearby places for LLM processing
+            List<Place> candidatePlaces;
+            Double searchDistance = 20.0; // 20km default distance
+
             if (latitude != null && longitude != null) {
-                places = placeRepository.findPopularPlaces(latitude, longitude, 20.0);
-                if (places.size() > limit) {
-                    places = places.subList(0, limit);
-                }
+                // Get nearby places ordered by distance
+                candidatePlaces = placeRepository.findNearbyPlacesForLLM(latitude, longitude, searchDistance, 30);
             } else {
-                // Fallback to general recommendations
-                PageRequest pageRequest = PageRequest.of(0, limit);
-                places = placeRepository.findRecommendablePlaces(pageRequest).getContent();
+                // Fallback to general high-rated places
+                PageRequest pageRequest = PageRequest.of(0, 30);
+                candidatePlaces = placeRepository.findGeneralPlacesForLLM(pageRequest);
             }
+
+            // Generate LLM-based recommendations
+            List<Place> places = generateLLMRecommendations(candidatePlaces, latitude, longitude, limit);
             
             List<SimplePlaceDto> placeDtos = places.stream()
                 .map(this::convertToSimplePlaceDto)
@@ -385,10 +393,91 @@ public class PlaceService {
         if (place.getGallery() != null && !place.getGallery().isEmpty()) {
             return place.getGallery().get(0);
         }
-        
+
         return null;
     }
-    
+
+    /**
+     * Generate LLM-based recommendations using weather and time context
+     */
+    private List<Place> generateLLMRecommendations(List<Place> candidatePlaces, Double latitude, Double longitude, int limit) {
+        if (candidatePlaces.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        try {
+            // Get current time and weather context
+            java.time.LocalTime now = java.time.LocalTime.now();
+            String timeOfDay = getTimeOfDay(now);
+            String weatherCondition = "맑음"; // TODO: integrate actual weather API
+            int hour = now.getHour();
+
+            // Build context-aware prompt for LLM
+            String locationContext = latitude != null && longitude != null ? "사용자 위치 주변" : "일반적인";
+            String prompt = String.format(
+                """
+                현재 시간: %s (%d시), 날씨: %s, 위치: %s
+
+                다음 장소 목록에서 현재 시간과 날씨에 가장 적합한 %d개 장소를 추천해주세요.
+                추천 시 고려사항:
+                - 현재 시간대에 적합한 활동
+                - 날씨 조건에 맞는 장소
+                - 장소의 특성과 분위기
+                - 거리 순으로 가까운 곳 우선
+
+                장소 목록:
+                %s
+
+                응답 형식: "추천장소1,추천장소2,추천장소3..." (쉼표로 구분, 장소명만)
+                """,
+                timeOfDay, hour, weatherCondition, locationContext, limit,
+                candidatePlaces.stream()
+                    .map(p -> String.format("- %s (%s, 평점: %.1f)",
+                        p.getName(), p.getCategory(), p.getRating() != null ? p.getRating() : 0.0))
+                    .collect(Collectors.joining("\n"))
+            );
+
+            // Get LLM recommendations
+            List<String> placeNames = candidatePlaces.stream()
+                .map(Place::getName)
+                .collect(Collectors.toList());
+
+            OllamaRecommendationResponse llmResponse = llmService.generatePlaceRecommendations(prompt, placeNames);
+
+            if (llmResponse != null && llmResponse.getRecommendedPlaces() != null && !llmResponse.getRecommendedPlaces().isEmpty()) {
+                // Map LLM recommendations back to Place objects
+                List<Place> recommendedPlaces = new ArrayList<>();
+                for (String recommendedName : llmResponse.getRecommendedPlaces()) {
+                    candidatePlaces.stream()
+                        .filter(place -> place.getName().equals(recommendedName))
+                        .findFirst()
+                        .ifPresent(recommendedPlaces::add);
+                }
+
+                // If we have enough recommendations, return them
+                if (recommendedPlaces.size() >= Math.min(limit, 5)) {
+                    return recommendedPlaces.subList(0, Math.min(limit, recommendedPlaces.size()));
+                }
+            }
+
+            // Fallback: return top places by rating if LLM fails
+            return candidatePlaces.stream()
+                .sorted((p1, p2) -> {
+                    Double rating1 = p1.getRating() != null ? p1.getRating().doubleValue() : 0.0;
+                    Double rating2 = p2.getRating() != null ? p2.getRating().doubleValue() : 0.0;
+                    return rating2.compareTo(rating1);
+                })
+                .limit(limit)
+                .collect(Collectors.toList());
+
+        } catch (Exception e) {
+            // Fallback on any error
+            return candidatePlaces.stream()
+                .limit(limit)
+                .collect(Collectors.toList());
+        }
+    }
+
     private String getTimeOfDay(java.time.LocalTime time) {
         int hour = time.getHour();
         if (hour >= 6 && hour < 12) return "아침";

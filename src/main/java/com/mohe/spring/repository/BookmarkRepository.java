@@ -28,6 +28,59 @@ public interface BookmarkRepository extends JpaRepository<Bookmark, Long> {
     List<Long> findBookmarkedPlaceIdsByUserId(@Param("userId") Long userId);
     
     long countByUser(User user);
-    
+
     void deleteByUserAndPlace(User user, Place place);
+
+    /**
+     * Find places with most bookmarks within distance from user location
+     */
+    @Query(value = """
+        SELECT p.id, p.name, p.category, p.rating, p.review_count, p.address, p.description,
+               p.latitude, p.longitude, p.phone, p.website_url, p.created_at, p.updated_at,
+               p.naver_place_id, p.google_place_id, p.last_rating_check, p.should_recheck_rating,
+               p.opened_date, p.first_seen_at, p.is_new_place,
+               COUNT(b.id) as bookmark_count
+        FROM places p
+        LEFT JOIN bookmarks b ON p.id = b.place_id
+        WHERE p.latitude IS NOT NULL AND p.longitude IS NOT NULL
+        AND (
+            6371 * acos(
+                cos(radians(?1)) * cos(radians(CAST(p.latitude AS DOUBLE PRECISION))) *
+                cos(radians(CAST(p.longitude AS DOUBLE PRECISION)) - radians(?2)) +
+                sin(radians(?1)) * sin(radians(CAST(p.latitude AS DOUBLE PRECISION)))
+            )
+        ) <= ?3
+        GROUP BY p.id, p.name, p.category, p.rating, p.review_count, p.address, p.description,
+                 p.latitude, p.longitude, p.phone, p.website_url, p.created_at, p.updated_at,
+                 p.naver_place_id, p.google_place_id, p.last_rating_check, p.should_recheck_rating,
+                 p.opened_date, p.first_seen_at, p.is_new_place
+        ORDER BY COUNT(b.id) DESC, p.rating DESC
+        LIMIT ?4
+    """, nativeQuery = true)
+    List<Place> findMostBookmarkedPlacesWithinDistance(
+        Double latitude,
+        Double longitude,
+        Double distance,
+        int limit
+    );
+
+    /**
+     * Find places with most bookmarks (fallback when no location provided)
+     */
+    @Query(value = """
+        SELECT p.id, p.name, p.category, p.rating, p.review_count, p.address, p.description,
+               p.latitude, p.longitude, p.phone, p.website_url, p.created_at, p.updated_at,
+               p.naver_place_id, p.google_place_id, p.last_rating_check, p.should_recheck_rating,
+               p.opened_date, p.first_seen_at, p.is_new_place,
+               COUNT(b.id) as bookmark_count
+        FROM places p
+        LEFT JOIN bookmarks b ON p.id = b.place_id
+        GROUP BY p.id, p.name, p.category, p.rating, p.review_count, p.address, p.description,
+                 p.latitude, p.longitude, p.phone, p.website_url, p.created_at, p.updated_at,
+                 p.naver_place_id, p.google_place_id, p.last_rating_check, p.should_recheck_rating,
+                 p.opened_date, p.first_seen_at, p.is_new_place
+        ORDER BY COUNT(b.id) DESC, p.rating DESC
+        LIMIT ?1
+    """, nativeQuery = true)
+    List<Place> findMostBookmarkedPlaces(int limit);
 }

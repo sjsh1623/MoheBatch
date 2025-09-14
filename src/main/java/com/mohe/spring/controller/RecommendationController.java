@@ -5,6 +5,7 @@ import com.mohe.spring.dto.EnhancedRecommendationsResponse;
 import com.mohe.spring.dto.ContextualRecommendationResponse;
 import com.mohe.spring.dto.CurrentTimeRecommendationsResponse;
 import com.mohe.spring.dto.PlaceDto;
+import com.mohe.spring.dto.SimplePlaceDto;
 import com.mohe.spring.service.*;
 import com.mohe.spring.security.UserPrincipal;
 import com.mohe.spring.repository.UserRepository;
@@ -387,6 +388,78 @@ public class RecommendationController {
         }
     }
     
+    @GetMapping("/bookmark-based")
+    @Operation(
+        summary = "북마크 기반 장소 추천",
+        description = "사용자 위치 기반으로 북마크가 많은 장소들을 추천합니다. 오늘은 이런 곳 어떠세요 섹션에서 사용됩니다."
+    )
+    @ApiResponses(
+        value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                responseCode = "200",
+                description = "북마크 기반 추천 성공",
+                content = @io.swagger.v3.oas.annotations.media.Content(
+                    mediaType = "application/json"
+                )
+            )
+        }
+    )
+    public ResponseEntity<ApiResponse<List<SimplePlaceDto>>> getBookmarkBasedRecommendations(
+            @Parameter(description = "사용자 위도", example = "37.5665")
+            @RequestParam(required = false) Double latitude,
+            @Parameter(description = "사용자 경도", example = "126.9780")
+            @RequestParam(required = false) Double longitude,
+            @Parameter(description = "거리 (km)", example = "20")
+            @RequestParam(defaultValue = "20.0") Double distance,
+            @Parameter(description = "추천 개수", example = "15")
+            @RequestParam(defaultValue = "15") int limit,
+            jakarta.servlet.http.HttpServletRequest httpRequest) {
+        try {
+            int safeLimit = Math.max(1, Math.min(limit, 50));
+            List<Place> places;
+
+            if (latitude != null && longitude != null) {
+                // Get bookmark-based recommendations within distance
+                places = bookmarkRepository.findMostBookmarkedPlacesWithinDistance(latitude, longitude, distance, safeLimit);
+            } else {
+                // Fallback to global bookmark-based recommendations
+                places = bookmarkRepository.findMostBookmarkedPlaces(safeLimit);
+            }
+
+            List<SimplePlaceDto> placeDtos = places.stream()
+                .map(this::convertToSimplePlaceDto)
+                .collect(Collectors.toList());
+
+            return ResponseEntity.ok(ApiResponse.success(placeDtos));
+        } catch (Exception e) {
+            logger.error("Failed to get bookmark-based recommendations", e);
+            return ResponseEntity.badRequest().body(
+                ApiResponse.error(
+                    "BOOKMARK_RECOMMENDATION_ERROR",
+                    e.getMessage() != null ? e.getMessage() : "북마크 기반 추천에 실패했습니다",
+                    httpRequest.getRequestURI()
+                )
+            );
+        }
+    }
+
+    private SimplePlaceDto convertToSimplePlaceDto(Place place) {
+        SimplePlaceDto dto = new SimplePlaceDto();
+        dto.setId(place.getId().toString());
+        dto.setName(place.getName());
+        dto.setTitle(place.getTitle() != null ? place.getTitle() : place.getName());
+        dto.setCategory(place.getCategory());
+        dto.setRating(place.getRating() != null ? place.getRating().doubleValue() : null);
+        dto.setReviewCount(place.getReviewCount());
+        dto.setAddress(place.getAddress());
+        dto.setLocation(place.getAddress()); // For backward compatibility
+        dto.setDescription(place.getDescription());
+        dto.setImageUrl(getPlaceImageUrl(place));
+        dto.setDistance(0.0); // Will be calculated if needed
+        dto.setIsBookmarked(false); // Will be set based on user authentication
+        return dto;
+    }
+
     private String getPlaceImageUrl(Place place) {
         // Get first image from gallery
         if (place.getGallery() != null && !place.getGallery().isEmpty()) {
