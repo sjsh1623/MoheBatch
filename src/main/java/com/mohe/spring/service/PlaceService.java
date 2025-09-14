@@ -370,7 +370,7 @@ public class PlaceService {
             place.getAddress(),
             imageUrl
         );
-        
+
         // Set additional fields
         dto.setTitle(place.getTitle());
         dto.setReviewCount(place.getReviewCount() != null ? place.getReviewCount() : 0);
@@ -384,7 +384,7 @@ public class PlaceService {
         dto.setDistance(0.0); // TODO: Calculate actual distance
         dto.setIsBookmarked(false); // TODO: Check if bookmarked by current user
         dto.setIsDemo(false);
-        
+
         return dto;
     }
     

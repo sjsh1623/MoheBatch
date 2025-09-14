@@ -1,0 +1,19 @@
+FROM gradle:8.5-jdk21
+
+WORKDIR /app
+
+# Copy gradle files for dependency caching
+COPY build.gradle settings.gradle ./
+RUN gradle dependencies --no-daemon
+
+# Copy source code
+COPY . .
+
+# Make gradlew executable
+RUN chmod +x gradlew
+
+# Expose port
+EXPOSE 8080
+
+# Run with gradle bootRun for live reload
+CMD ["./gradlew", "bootRun", "--continuous"]

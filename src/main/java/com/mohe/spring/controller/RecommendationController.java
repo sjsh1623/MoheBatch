@@ -420,10 +420,12 @@ public class RecommendationController {
 
             if (latitude != null && longitude != null) {
                 // Get bookmark-based recommendations within distance
-                places = bookmarkRepository.findMostBookmarkedPlacesWithinDistance(latitude, longitude, distance, safeLimit);
+                PageRequest pageRequest = PageRequest.of(0, safeLimit);
+                places = bookmarkRepository.findMostBookmarkedPlacesWithinDistance(latitude, longitude, distance, pageRequest);
             } else {
                 // Fallback to global bookmark-based recommendations
-                places = bookmarkRepository.findMostBookmarkedPlaces(safeLimit);
+                PageRequest pageRequest = PageRequest.of(0, safeLimit);
+                places = bookmarkRepository.findMostBookmarkedPlaces(pageRequest);
             }
 
             List<SimplePlaceDto> placeDtos = places.stream()

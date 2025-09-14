@@ -1,0 +1,90 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: mohe-postgres-dev
+    environment:
+      POSTGRES_DB: mohe_db
+      POSTGRES_USER: mohe_user
+      POSTGRES_PASSWORD: mohe_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    networks:
+      - mohe-network-dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mohe_user -d mohe_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: mohe-spring-dev
+    ports:
+      - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      # Database configuration - explicit override
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/mohe_db
+      SPRING_DATASOURCE_USERNAME: mohe_user
+      SPRING_DATASOURCE_PASSWORD: mohe_password
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+      DB_USERNAME: mohe_user
+      DB_PASSWORD: mohe_password
+      # JPA configuration for development
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_SHOW_SQL: true
+      # Email configuration (minimal for development)
+      MAIL_HOST: localhost
+      MAIL_PORT: 1025
+      MAIL_USERNAME: ""
+      MAIL_PASSWORD: ""
+      MAIL_SMTP_AUTH: false
+      MAIL_SMTP_STARTTLS: false
+      # JWT Configuration
+      JWT_SECRET: mySecretKey12345678901234567890123456789012345678901234567890
+      # API Keys (empty for development)
+      NAVER_CLIENT_ID: ""
+      NAVER_CLIENT_SECRET: ""
+      GOOGLE_PLACES_API_KEY: ""
+      OPENAI_API_KEY: ""
+      GEMINI_API_KEY: ""
+    volumes:
+      - .:/app
+      - /app/build
+      - /app/.gradle
+    networks:
+      - mohe-network-dev
+    restart: unless-stopped
+    command: ["./gradlew", "bootRun", "--continuous"]
+
+  frontend:
+    build:
+      context: ../MoheReact
+      dockerfile: Dockerfile.dev
+    container_name: mohe-react-dev
+    ports:
+      - "3003:3000"
+      - "5176:5173"
+    environment:
+      VITE_API_BASE_URL: http://localhost:8081
+    volumes:
+      - ../MoheReact:/app
+      - /app/node_modules
+    networks:
+      - mohe-network-dev
+    restart: unless-stopped
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+
+volumes:
+  postgres_dev_data:
+
+networks:
+  mohe-network-dev:
+    driver: bridge
