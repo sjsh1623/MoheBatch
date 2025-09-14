@@ -4,14 +4,14 @@ import java.util.List;
 import java.util.Map;
 
 public class CurrentTimeRecommendationsResponse {
-    private List<PlaceDto> recommendations;
+    private List<SimplePlaceDto> recommendations;
     private Map<String, Object> timeContext;
     private String weatherCondition;
     private String timeOfDay;
 
     public CurrentTimeRecommendationsResponse() {}
 
-    public CurrentTimeRecommendationsResponse(List<PlaceDto> recommendations, Map<String, Object> timeContext, 
+    public CurrentTimeRecommendationsResponse(List<SimplePlaceDto> recommendations, Map<String, Object> timeContext, 
                                             String weatherCondition, String timeOfDay) {
         this.recommendations = recommendations;
         this.timeContext = timeContext;
@@ -19,11 +19,11 @@ public class CurrentTimeRecommendationsResponse {
         this.timeOfDay = timeOfDay;
     }
 
-    public List<PlaceDto> getRecommendations() {
+    public List<SimplePlaceDto> getRecommendations() {
         return recommendations;
     }
 
-    public void setRecommendations(List<PlaceDto> recommendations) {
+    public void setRecommendations(List<SimplePlaceDto> recommendations) {
         this.recommendations = recommendations;
     }
 

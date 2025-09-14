@@ -72,3 +72,4 @@ temp/
 tmp/
 .env.local
 .env.*.local
+src/main/resources/application.yml

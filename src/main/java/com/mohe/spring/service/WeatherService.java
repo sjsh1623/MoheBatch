@@ -109,34 +109,31 @@ class WeatherContext {
 }
 
 /**
- * OpenWeatherMap implementation of WeatherProvider
+ * Open-Meteo implementation of WeatherProvider (no API key required)
  */
 @Service
-class OpenWeatherMapProvider implements WeatherProvider {
+class OpenMeteoProvider implements WeatherProvider {
     
-    private static final Logger logger = LoggerFactory.getLogger(OpenWeatherMapProvider.class);
-    private static final String BASE_URL = "https://api.openweathermap.org/data/2.5";
+    private static final Logger logger = LoggerFactory.getLogger(OpenMeteoProvider.class);
+    private static final String BASE_URL = "https://api.open-meteo.com/v1/forecast";
     
     private final WebClient webClient;
-    private final String apiKey;
     
-    public OpenWeatherMapProvider(WebClient webClient, 
-                                 @Value("${weather.openweathermap.api-key:}") String apiKey) {
+    public OpenMeteoProvider(WebClient webClient) {
         this.webClient = webClient;
-        this.apiKey = apiKey;
     }
     
     @Override
     public WeatherData getCurrentWeather(double lat, double lon) {
-        if (apiKey == null || apiKey.isBlank()) {
-            logger.warn("OpenWeatherMap API key not configured, returning mock data");
-            return createMockWeatherData(lat, lon);
-        }
-        
         try {
+            String url = BASE_URL + "?latitude=" + lat + "&longitude=" + lon + 
+                        "&current_weather=true&timezone=auto&temperature_unit=celsius&windspeed_unit=kmh";
+            
+            logger.info("Fetching weather data from Open-Meteo: {}", url);
+            
             @SuppressWarnings("unchecked")
             Map<String, Object> response = webClient.get()
-                .uri(BASE_URL + "/weather?lat=" + lat + "&lon=" + lon + "&appid=" + apiKey + "&units=metric")
+                .uri(url)
                 .retrieve()
                 .bodyToMono(Map.class)
                 .retryWhen(
@@ -147,52 +144,114 @@ class OpenWeatherMapProvider implements WeatherProvider {
                 .block(Duration.ofSeconds(10));
                 
             if (response == null) {
-                throw new RuntimeException("Empty response from OpenWeatherMap");
+                throw new RuntimeException("Empty response from Open-Meteo");
             }
             
-            return parseOpenWeatherMapResponse(response);
+            return parseOpenMeteoResponse(response);
             
         } catch (Exception e) {
-            logger.error("Failed to fetch weather data from OpenWeatherMap for lat={}, lon={}", lat, lon, e);
-            return createMockWeatherData(lat, lon);
+            logger.error("Failed to fetch weather data from Open-Meteo for lat={}, lon={}: {}", lat, lon, e.getMessage());
+            throw new RuntimeException("Unable to retrieve weather data right now", e);
         }
     }
     
     @SuppressWarnings("unchecked")
-    private WeatherData parseOpenWeatherMapResponse(Map<String, Object> response) {
-        Map<String, Object> main = (Map<String, Object>) response.get("main");
-        List<Map<String, Object>> weather = (List<Map<String, Object>>) response.get("weather");
-        Map<String, Object> firstWeather = weather.get(0);
+    private WeatherData parseOpenMeteoResponse(Map<String, Object> response) {
+        Map<String, Object> currentWeather = (Map<String, Object>) response.get("current_weather");
         
-        double tempC = ((Number) main.get("temp")).doubleValue();
+        if (currentWeather == null) {
+            throw new RuntimeException("No current_weather data in Open-Meteo response");
+        }
+        
+        double tempC = ((Number) currentWeather.get("temperature")).doubleValue();
         double tempF = tempC * 9 / 5 + 32;
-        int humidity = ((Number) main.get("humidity")).intValue();
+        double windSpeedKmh = ((Number) currentWeather.get("windspeed")).doubleValue();
+        int weatherCode = ((Number) currentWeather.get("weathercode")).intValue();
         
-        Map<String, Object> wind = (Map<String, Object>) response.get("wind");
-        double windSpeedKmh = wind != null && wind.get("speed") != null 
-            ? ((Number) wind.get("speed")).doubleValue() * 3.6 
-            : 0.0;
-        
-        String conditionCode = normalizeConditionCode((String) firstWeather.get("main"));
-        String conditionText = (String) firstWeather.get("description");
+        String conditionCode = mapWeatherCodeToCondition(weatherCode);
+        String conditionText = getWeatherDescription(weatherCode, tempC);
         
         String daypart = determineDaypart();
         
-        return new WeatherData(tempC, tempF, conditionCode, conditionText, humidity, windSpeedKmh, daypart);
+        // Open-Meteo doesn't provide humidity, so we'll estimate based on weather conditions
+        int estimatedHumidity = estimateHumidity(weatherCode);
+        
+        logger.info("Parsed Open-Meteo weather: {}°C, {}, wind: {}km/h", tempC, conditionText, windSpeedKmh);
+        
+        return new WeatherData(tempC, tempF, conditionCode, conditionText, estimatedHumidity, windSpeedKmh, daypart);
     }
     
-    private String normalizeConditionCode(String owmCondition) {
-        switch (owmCondition.toLowerCase()) {
-            case "clear": return "clear";
-            case "clouds": return "cloudy";
-            case "rain":
-            case "drizzle": return "rain";
-            case "snow": return "snow";
-            case "thunderstorm": return "thunderstorm";
-            case "mist":
-            case "fog":
-            case "haze": return "fog";
+    /**
+     * Maps Open-Meteo weather codes to normalized condition codes
+     * Reference: https://open-meteo.com/en/docs
+     */
+    private String mapWeatherCodeToCondition(int weatherCode) {
+        switch (weatherCode) {
+            case 0: return "clear";
+            case 1: case 2: case 3: return "cloudy";
+            case 45: case 48: return "fog";
+            case 51: case 53: case 55: return "drizzle";
+            case 56: case 57: return "freezing_drizzle";
+            case 61: case 63: case 65: return "rain";
+            case 66: case 67: return "freezing_rain";
+            case 71: case 73: case 75: return "snow";
+            case 77: return "snow_grains";
+            case 80: case 81: case 82: return "rain_showers";
+            case 85: case 86: return "snow_showers";
+            case 95: return "thunderstorm";
+            case 96: case 99: return "thunderstorm_with_hail";
             default: return "unknown";
+        }
+    }
+    
+    /**
+     * Get Korean weather description based on weather code and temperature
+     */
+    private String getWeatherDescription(int weatherCode, double tempC) {
+        switch (weatherCode) {
+            case 0: return tempC > 25 ? "맑고 더움" : tempC < 10 ? "맑고 추움" : "맑음";
+            case 1: return "대체로 맑음";
+            case 2: return "부분적으로 흐림";
+            case 3: return "흐림";
+            case 45: case 48: return "안개";
+            case 51: return "가벼운 이슬비";
+            case 53: return "보통 이슬비";
+            case 55: return "심한 이슬비";
+            case 56: case 57: return "얼어붙는 이슬비";
+            case 61: return "가벼운 비";
+            case 63: return "보통 비";
+            case 65: return "심한 비";
+            case 66: case 67: return "얼어붙는 비";
+            case 71: return "가벼운 눈";
+            case 73: return "보통 눈";
+            case 75: return "심한 눈";
+            case 77: return "눈알갱이";
+            case 80: return "가벼운 소나기";
+            case 81: return "보통 소나기";
+            case 82: return "심한 소나기";
+            case 85: return "가벼운 눈보라";
+            case 86: return "심한 눈보라";
+            case 95: return "천둥번개";
+            case 96: case 99: return "천둥번개와 우박";
+            default: return "알 수 없는 날씨";
+        }
+    }
+    
+    /**
+     * Estimate humidity based on weather conditions
+     */
+    private int estimateHumidity(int weatherCode) {
+        switch (weatherCode) {
+            case 0: return 45; // Clear
+            case 1: case 2: return 55; // Partly cloudy
+            case 3: return 70; // Overcast
+            case 45: case 48: return 95; // Fog
+            case 51: case 53: case 55: return 85; // Drizzle
+            case 61: case 63: case 65: return 90; // Rain
+            case 71: case 73: case 75: return 80; // Snow
+            case 80: case 81: case 82: return 85; // Rain showers
+            case 95: case 96: case 99: return 85; // Thunderstorm
+            default: return 60; // Default
         }
     }
     
@@ -202,36 +261,6 @@ class OpenWeatherMapProvider implements WeatherProvider {
         if (hour >= 12 && hour <= 17) return "afternoon";
         if (hour >= 18 && hour <= 21) return "evening";
         return "night";
-    }
-    
-    private WeatherData createMockWeatherData(double lat, double lon) {
-        // Create reasonable mock data based on location and time
-        LocalDateTime now = LocalDateTime.now();
-        double tempC;
-        switch (now.getMonthValue()) {
-            case 12: case 1: case 2:
-                tempC = 5.0 + (Math.random() * 10); // Winter: 5-15°C
-                break;
-            case 3: case 4: case 5:
-                tempC = 15.0 + (Math.random() * 10); // Spring: 15-25°C
-                break;
-            case 6: case 7: case 8:
-                tempC = 25.0 + (Math.random() * 10); // Summer: 25-35°C
-                break;
-            default:
-                tempC = 10.0 + (Math.random() * 15); // Fall: 10-25°C
-                break;
-        }
-        
-        return new WeatherData(
-            tempC,
-            tempC * 9 / 5 + 32,
-            "clear",
-            "Clear sky (mock data)",
-            60,
-            10.0,
-            determineDaypart()
-        );
     }
 }
 
@@ -249,8 +278,8 @@ public class WeatherService {
     // Simple in-memory cache for 10 minutes
     private final Map<String, CacheEntry> weatherCache = new ConcurrentHashMap<>();
     
-    public WeatherService(WeatherProvider weatherProvider) {
-        this.weatherProvider = weatherProvider;
+    public WeatherService(OpenMeteoProvider openMeteoProvider) {
+        this.weatherProvider = openMeteoProvider;
     }
     
     public WeatherData getCurrentWeather(double lat, double lon) {

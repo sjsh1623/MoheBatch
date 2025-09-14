@@ -55,7 +55,7 @@ public class VectorSimilarityResponse {
     // Nested class for similar place
     public static class SimilarPlace {
         @JsonProperty("place")
-        private PlaceDto place;
+        private PlaceDto.PlaceResponse place;
         
         @JsonProperty("similarity_score")
         private Double similarityScore;
@@ -73,7 +73,7 @@ public class VectorSimilarityResponse {
         public SimilarPlace() {}
         
         // Constructor
-        public SimilarPlace(PlaceDto place, Double similarityScore, Double vectorSimilarity,
+        public SimilarPlace(PlaceDto.PlaceResponse place, Double similarityScore, Double vectorSimilarity,
                            Double weightedSimilarity, String explanation) {
             this.place = place;
             this.similarityScore = similarityScore;
@@ -83,8 +83,8 @@ public class VectorSimilarityResponse {
         }
         
         // Getters and setters
-        public PlaceDto getPlace() { return place; }
-        public void setPlace(PlaceDto place) { this.place = place; }
+        public PlaceDto.PlaceResponse getPlace() { return place; }
+        public void setPlace(PlaceDto.PlaceResponse place) { this.place = place; }
         public Double getSimilarityScore() { return similarityScore; }
         public void setSimilarityScore(Double similarityScore) { this.similarityScore = similarityScore; }
         public Double getVectorSimilarity() { return vectorSimilarity; }

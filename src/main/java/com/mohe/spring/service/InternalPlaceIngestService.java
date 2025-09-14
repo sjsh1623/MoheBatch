@@ -148,7 +148,17 @@ public class InternalPlaceIngestService {
             
             place.setNaverPlaceId(request.getNaverPlaceId());
             place.setGooglePlaceId(request.getGooglePlaceId());
-            place.setImageUrl(request.getImageUrl());
+            // Add image to gallery if provided
+            if (request.getImageUrl() != null && !request.getImageUrl().trim().isEmpty()) {
+                List<String> gallery = place.getGallery();
+                if (gallery == null) {
+                    gallery = new ArrayList<>();
+                    place.setGallery(gallery);
+                }
+                if (!gallery.contains(request.getImageUrl().trim())) {
+                    gallery.add(request.getImageUrl().trim());
+                }
+            }
             
             if (request.getTypes() != null) {
                 place.setTypes(request.getTypes());

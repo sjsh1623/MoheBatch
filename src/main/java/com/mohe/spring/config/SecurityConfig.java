@@ -84,6 +84,8 @@ public class SecurityConfig {
                     "/api/place-enhancement/**",
                     "/api/korean-regions/**",
                     "/api/home/**",
+                    "/api/mock/**",
+                    "/image/**",
                     "/health",
                     "/actuator/**",
                     "/swagger-ui/**",

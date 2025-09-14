@@ -42,8 +42,11 @@ public class ActivityService {
                     RecentPlaceData data = new RecentPlaceData();
                     data.setId(recentView.getPlace().getId().toString());
                     data.setTitle(recentView.getPlace().getTitle());
-                    data.setLocation(recentView.getPlace().getLocation());
-                    data.setImage(recentView.getPlace().getImageUrl());
+                    data.setLocation(recentView.getPlace().getAddress());
+                    // Get first image from gallery or null
+                    String imageUrl = recentView.getPlace().getGallery() != null && !recentView.getPlace().getGallery().isEmpty() ? 
+                        recentView.getPlace().getGallery().get(0) : null;
+                    data.setImage(imageUrl);
                     data.setRating(recentView.getPlace().getRating());
                     data.setViewedAt(recentView.getViewedAt());
                     return data;

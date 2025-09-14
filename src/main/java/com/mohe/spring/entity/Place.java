@@ -23,16 +23,14 @@ public class Place {
     
     @Column(nullable = false)
     private String name;
-    
-    @Column(nullable = false)
-    private String title; // For backward compatibility
+
+    @Column(name = "name", insertable = false, updatable = false)
+    private String title; // For backward compatibility - mapped to same column as name
     
     private String address;
     
     @Column(name = "road_address")
     private String roadAddress;
-    
-    private String location;
     
     @Column(precision = 10, scale = 8)
     private BigDecimal latitude;
@@ -40,18 +38,8 @@ public class Place {
     @Column(precision = 11, scale = 8)
     private BigDecimal longitude;
     
-    @Column(precision = 10, scale = 2)
-    private BigDecimal altitude;
-    
     private String category;
     private String description;
-    
-    @Column(name = "image_url")
-    private String imageUrl;
-    
-    @JdbcTypeCode(SqlTypes.ARRAY)
-    @Column(columnDefinition = "text[]")
-    private List<String> images = new ArrayList<>();
     
     @JdbcTypeCode(SqlTypes.ARRAY)
     @Column(columnDefinition = "text[]")
@@ -147,7 +135,7 @@ public class Place {
     // Constructor with required fields
     public Place(String name) {
         this.name = name;
-        this.title = name; // For backward compatibility
+        // title will be automatically mapped to the same value as name
     }
     
     // Helper methods
@@ -189,6 +177,7 @@ public class Place {
     
     public void setName(String name) {
         this.name = name;
+        // title is mapped to the same column and will automatically reflect the name value
     }
     
     public String getTitle() {
@@ -196,7 +185,8 @@ public class Place {
     }
     
     public void setTitle(String title) {
-        this.title = title;
+        // title is read-only, mapped to name column for backward compatibility
+        // Use setName() to update both name and title
     }
     
     public String getAddress() {
@@ -215,14 +205,6 @@ public class Place {
         this.roadAddress = roadAddress;
     }
     
-    public String getLocation() {
-        return location;
-    }
-    
-    public void setLocation(String location) {
-        this.location = location;
-    }
-    
     public BigDecimal getLatitude() {
         return latitude;
     }
@@ -239,14 +221,6 @@ public class Place {
         this.longitude = longitude;
     }
     
-    public BigDecimal getAltitude() {
-        return altitude;
-    }
-    
-    public void setAltitude(BigDecimal altitude) {
-        this.altitude = altitude;
-    }
-    
     public String getCategory() {
         return category;
     }
@@ -261,22 +235,6 @@ public class Place {
     
     public void setDescription(String description) {
         this.description = description;
-    }
-    
-    public String getImageUrl() {
-        return imageUrl;
-    }
-    
-    public void setImageUrl(String imageUrl) {
-        this.imageUrl = imageUrl;
-    }
-    
-    public List<String> getImages() {
-        return images;
-    }
-    
-    public void setImages(List<String> images) {
-        this.images = images;
     }
     
     public List<String> getGallery() {

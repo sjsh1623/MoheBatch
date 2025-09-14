@@ -3,23 +3,23 @@ package com.mohe.spring.dto;
 import java.util.List;
 
 public class PlaceRecommendationsResponse {
-    private List<PlaceDto> recommendations;
+    private List<SimplePlaceDto> recommendations;
     private int totalCount;
     private String algorithm;
 
     public PlaceRecommendationsResponse() {}
 
-    public PlaceRecommendationsResponse(List<PlaceDto> recommendations, int totalCount, String algorithm) {
+    public PlaceRecommendationsResponse(List<SimplePlaceDto> recommendations, int totalCount, String algorithm) {
         this.recommendations = recommendations;
         this.totalCount = totalCount;
         this.algorithm = algorithm;
     }
 
-    public List<PlaceDto> getRecommendations() {
+    public List<SimplePlaceDto> getRecommendations() {
         return recommendations;
     }
 
-    public void setRecommendations(List<PlaceDto> recommendations) {
+    public void setRecommendations(List<SimplePlaceDto> recommendations) {
         this.recommendations = recommendations;
     }
 

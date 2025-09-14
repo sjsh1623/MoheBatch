@@ -4,25 +4,25 @@ import java.util.List;
 import java.util.Map;
 
 public class PlaceSearchResponse {
-    private List<PlaceDto> searchResults;
+    private List<SimplePlaceDto> searchResults;
     private Map<String, Object> searchContext;
     private int totalCount;
     private String query;
 
     public PlaceSearchResponse() {}
 
-    public PlaceSearchResponse(List<PlaceDto> searchResults, Map<String, Object> searchContext, int totalCount, String query) {
+    public PlaceSearchResponse(List<SimplePlaceDto> searchResults, Map<String, Object> searchContext, int totalCount, String query) {
         this.searchResults = searchResults;
         this.searchContext = searchContext;
         this.totalCount = totalCount;
         this.query = query;
     }
 
-    public List<PlaceDto> getSearchResults() {
+    public List<SimplePlaceDto> getSearchResults() {
         return searchResults;
     }
 
-    public void setSearchResults(List<PlaceDto> searchResults) {
+    public void setSearchResults(List<SimplePlaceDto> searchResults) {
         this.searchResults = searchResults;
     }
 

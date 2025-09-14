@@ -2,6 +2,7 @@ package com.mohe.spring.controller;
 
 import com.mohe.spring.dto.*;
 import com.mohe.spring.service.PlaceService;
+import com.mohe.spring.service.VectorSearchService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -14,6 +15,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -24,17 +27,17 @@ import java.util.Map;
 public class PlaceController {
     
     private final PlaceService placeService;
+    private final VectorSearchService vectorSearchService;
     
-    public PlaceController(PlaceService placeService) {
+    public PlaceController(PlaceService placeService, VectorSearchService vectorSearchService) {
         this.placeService = placeService;
+        this.vectorSearchService = vectorSearchService;
     }
     
     @GetMapping("/recommendations")
-    @PreAuthorize("hasRole('USER')")
-    @SecurityRequirement(name = "bearerAuth")
     @Operation(
-        summary = "개인화된 장소 추천",
-        description = "사용자의 MBTI와 선호도를 기반으로 개인화된 장소를 추천합니다."
+        summary = "장소 추천 (게스트/회원 공통)",
+        description = "로그인 사용자는 개인화된 추천, 게스트는 평점 기반 추천을 제공합니다."
     )
     @ApiResponses(
         value = {
@@ -256,7 +259,7 @@ public class PlaceController {
     @GetMapping("/popular")
     @Operation(
         summary = "인기 장소 목록 조회",
-        description = "사용자 위치를 기반으로 10km 이내의 인기 장소를 북마크 순으로 조회합니다. 게스트와 로그인 사용자 모두 접근 가능합니다."
+        description = "사용자 위치를 기반으로 20km 이내의 인기 장소를 리뷰수와 평점 순으로 조회합니다. 게스트와 로그인 사용자 모두 접근 가능합니다."
     )
     @ApiResponses(
         value = {
@@ -360,6 +363,60 @@ public class PlaceController {
                 ApiResponse.error(
                     ErrorCode.INTERNAL_SERVER_ERROR,
                     e.getMessage() != null ? e.getMessage() : "장소 목록 조회에 실패했습니다",
+                    httpRequest.getRequestURI()
+                )
+            );
+        }
+    }
+
+    @GetMapping("/vector-search")
+    @PreAuthorize("hasRole('USER')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(
+        summary = "벡터 유사도 기반 장소 검색",
+        description = "사용자의 취향을 반영한 벡터 유사도 기반 개인화된 장소 검색을 제공합니다."
+    )
+    @ApiResponses(
+        value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                responseCode = "200",
+                description = "벡터 검색 성공",
+                content = @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = VectorSimilarityResponse.class)
+                )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                responseCode = "401",
+                description = "인증이 필요한 서비스입니다"
+            )
+        }
+    )
+    public ResponseEntity<ApiResponse<VectorSimilarityResponse>> vectorSearchPlaces(
+            @Parameter(description = "검색 쿼리", required = true, example = "조용한 카페")
+            @RequestParam String query,
+            @Parameter(description = "유사도 임계값 (0.0~1.0)", example = "0.3")
+            @RequestParam(defaultValue = "0.3") double threshold,
+            @Parameter(description = "반환할 최대 결과 수", example = "15")
+            @RequestParam(defaultValue = "15") int limit,
+            HttpServletRequest httpRequest) {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            String userEmail = auth.getName();
+            
+            // Validate parameters
+            double safeThreshold = Math.max(0.0, Math.min(1.0, threshold));
+            int safeLimit = Math.max(1, Math.min(50, limit));
+            
+            VectorSimilarityResponse response = vectorSearchService.searchWithVectorSimilarity(
+                query, userEmail, safeThreshold, safeLimit);
+            
+            return ResponseEntity.ok(ApiResponse.success(response));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(
+                ApiResponse.error(
+                    ErrorCode.INTERNAL_SERVER_ERROR,
+                    e.getMessage() != null ? e.getMessage() : "벡터 검색에 실패했습니다",
                     httpRequest.getRequestURI()
                 )
             );

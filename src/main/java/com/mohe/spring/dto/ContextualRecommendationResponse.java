@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 public class ContextualRecommendationResponse {
-    private List<PlaceDto> places;
+    private List<PlaceDto.PlaceResponse> places;
     private Map<String, Object> context;
     private String weatherCondition;
     private String timeContext;
@@ -12,7 +12,7 @@ public class ContextualRecommendationResponse {
 
     public ContextualRecommendationResponse() {}
 
-    public ContextualRecommendationResponse(List<PlaceDto> places, Map<String, Object> context, 
+    public ContextualRecommendationResponse(List<PlaceDto.PlaceResponse> places, Map<String, Object> context, 
                                           String weatherCondition, String timeContext, String recommendation) {
         this.places = places;
         this.context = context;
@@ -21,11 +21,11 @@ public class ContextualRecommendationResponse {
         this.recommendation = recommendation;
     }
 
-    public List<PlaceDto> getPlaces() {
+    public List<PlaceDto.PlaceResponse> getPlaces() {
         return places;
     }
 
-    public void setPlaces(List<PlaceDto> places) {
+    public void setPlaces(List<PlaceDto.PlaceResponse> places) {
         this.places = places;
     }
 

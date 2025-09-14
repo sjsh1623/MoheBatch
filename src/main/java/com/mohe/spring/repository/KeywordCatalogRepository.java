@@ -23,31 +23,9 @@ public interface KeywordCatalogRepository extends JpaRepository<KeywordCatalog, 
     List<KeywordCatalog> findByCategory(String category);
     
     /**
-     * Find keywords by their vector position range
-     */
-    List<KeywordCatalog> findByVectorPositionBetween(int start, int end);
-    
-    /**
-     * Find keywords that contain specific related groups
-     */
-    @Query("SELECT kc FROM KeywordCatalog kc WHERE kc.relatedGroups LIKE CONCAT('%', :group, '%')")
-    List<KeywordCatalog> findByRelatedGroupsContaining(@Param("group") String group);
-    
-    /**
-     * Get all keywords ordered by vector position for vector creation
-     */
-    List<KeywordCatalog> findAllByOrderByVectorPosition();
-    
-    /**
      * Check if a keyword exists
      */
     boolean existsByKeyword(String keyword);
-    
-    /**
-     * Get the maximum vector position (should be 99 for 100-dimensional vector)
-     */
-    @Query("SELECT MAX(kc.vectorPosition) FROM KeywordCatalog kc")
-    Optional<Integer> getMaxVectorPosition();
     
     /**
      * Find keywords by partial name match (for fuzzy matching)

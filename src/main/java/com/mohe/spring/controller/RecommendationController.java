@@ -3,12 +3,15 @@ package com.mohe.spring.controller;
 import com.mohe.spring.dto.ApiResponse;
 import com.mohe.spring.dto.EnhancedRecommendationsResponse;
 import com.mohe.spring.dto.ContextualRecommendationResponse;
+import com.mohe.spring.dto.CurrentTimeRecommendationsResponse;
+import com.mohe.spring.dto.PlaceDto;
 import com.mohe.spring.service.*;
 import com.mohe.spring.security.UserPrincipal;
 import com.mohe.spring.repository.UserRepository;
 import com.mohe.spring.repository.PlaceRepository;
 import com.mohe.spring.repository.BookmarkRepository;
 import com.mohe.spring.entity.User;
+import com.mohe.spring.entity.Place;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 // Import removed - using fully qualified name for ApiResponse to avoid conflict
@@ -38,6 +41,7 @@ public class RecommendationController {
     private final EnhancedRecommendationService enhancedRecommendationService;
     private final ContextualRecommendationService contextualRecommendationService;
     private final WeatherService weatherService;
+    private final PlaceService placeService;
     private final UserRepository userRepository;
     private final PlaceRepository placeRepository;
     private final BookmarkRepository bookmarkRepository;
@@ -46,12 +50,14 @@ public class RecommendationController {
             EnhancedRecommendationService enhancedRecommendationService,
             ContextualRecommendationService contextualRecommendationService,
             WeatherService weatherService,
+            PlaceService placeService,
             UserRepository userRepository,
             PlaceRepository placeRepository,
             BookmarkRepository bookmarkRepository) {
         this.enhancedRecommendationService = enhancedRecommendationService;
         this.contextualRecommendationService = contextualRecommendationService;
         this.weatherService = weatherService;
+        this.placeService = placeService;
         this.userRepository = userRepository;
         this.placeRepository = placeRepository;
         this.bookmarkRepository = bookmarkRepository;
@@ -330,15 +336,62 @@ public class RecommendationController {
 
     private ContextualRecommendationResponse getPersonalizedContextualRecommendations(
             UserPrincipal userPrincipal, double lat, double lon, String query, String timeContext, int limit) {
-        // Implementation would depend on the specific service interfaces
-        // This is a placeholder for the complex logic from the Kotlin version
-        throw new UnsupportedOperationException("Implementation needed based on service interfaces");
+        // Use ContextualRecommendationService for authenticated users
+        return contextualRecommendationService.getContextualRecommendations(query, lat, lon, limit);
     }
 
     private ContextualRecommendationResponse getGuestContextualRecommendations(
             double lat, double lon, String query, String timeContext, int limit) {
-        // Implementation would depend on the specific service interfaces
-        // This is a placeholder for the complex logic from the Kotlin version
-        throw new UnsupportedOperationException("Implementation needed based on service interfaces");
+        // Use ContextualRecommendationService for unauthenticated users
+        return contextualRecommendationService.getContextualRecommendations(query, lat, lon, limit);
+    }
+
+    @GetMapping("/current-time")
+    @Operation(
+        summary = "지금 이시간 장소 추천",
+        description = "현재 시간, 날씨, 위치를 기반으로 적합한 장소를 추천합니다. 게스트와 로그인 사용자 모두 이용 가능합니다."
+    )
+    @ApiResponses(
+        value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                responseCode = "200",
+                description = "현재 시간 기반 추천 성공",
+                content = @io.swagger.v3.oas.annotations.media.Content(
+                    mediaType = "application/json",
+                    schema = @io.swagger.v3.oas.annotations.media.Schema(implementation = CurrentTimeRecommendationsResponse.class)
+                )
+            )
+        }
+    )
+    public ResponseEntity<ApiResponse<CurrentTimeRecommendationsResponse>> getCurrentTimeRecommendations(
+            @Parameter(description = "사용자 위도", example = "37.5665")
+            @RequestParam(required = false) Double latitude,
+            @Parameter(description = "사용자 경도", example = "126.9780")
+            @RequestParam(required = false) Double longitude,
+            @Parameter(description = "추천 개수", example = "10")
+            @RequestParam(defaultValue = "10") int limit,
+            jakarta.servlet.http.HttpServletRequest httpRequest) {
+        try {
+            int safeLimit = limit < 1 ? 10 : Math.min(limit, 50);
+            CurrentTimeRecommendationsResponse response = placeService.getCurrentTimePlaces(latitude, longitude, safeLimit);
+            return ResponseEntity.ok(ApiResponse.success(response));
+        } catch (Exception e) {
+            logger.error("Failed to get current time recommendations", e);
+            return ResponseEntity.badRequest().body(
+                ApiResponse.error(
+                    "CURRENT_TIME_RECOMMENDATION_ERROR",
+                    e.getMessage() != null ? e.getMessage() : "현재 시간 추천에 실패했습니다",
+                    httpRequest.getRequestURI()
+                )
+            );
+        }
+    }
+    
+    private String getPlaceImageUrl(Place place) {
+        // Get first image from gallery
+        if (place.getGallery() != null && !place.getGallery().isEmpty()) {
+            return place.getGallery().get(0);
+        }
+        return null;
     }
 }

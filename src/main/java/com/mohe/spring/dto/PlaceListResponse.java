@@ -3,7 +3,7 @@ package com.mohe.spring.dto;
 import java.util.List;
 
 public class PlaceListResponse {
-    private List<PlaceDto> places;
+    private List<SimplePlaceDto> places;
     private int totalElements;
     private int totalPages;
     private int currentPage;
@@ -11,7 +11,7 @@ public class PlaceListResponse {
 
     public PlaceListResponse() {}
 
-    public PlaceListResponse(List<PlaceDto> places, int totalElements, int totalPages, int currentPage, int size) {
+    public PlaceListResponse(List<SimplePlaceDto> places, int totalElements, int totalPages, int currentPage, int size) {
         this.places = places;
         this.totalElements = totalElements;
         this.totalPages = totalPages;
@@ -19,11 +19,11 @@ public class PlaceListResponse {
         this.size = size;
     }
 
-    public List<PlaceDto> getPlaces() {
+    public List<SimplePlaceDto> getPlaces() {
         return places;
     }
 
-    public void setPlaces(List<PlaceDto> places) {
+    public void setPlaces(List<SimplePlaceDto> places) {
         this.places = places;
     }
 

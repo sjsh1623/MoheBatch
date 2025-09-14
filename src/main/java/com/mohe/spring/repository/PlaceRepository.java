@@ -22,8 +22,7 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
     @Query("SELECT p FROM Place p WHERE p.rating >= :minRating ORDER BY p.rating DESC, p.reviewCount DESC")
     Page<Place> findTopRatedPlaces(@Param("minRating") Double minRating, Pageable pageable);
     
-    @Query(value = "SELECT * FROM places p WHERE p.rating >= :minRating AND array_length(p.images, 1) >= 5 ORDER BY p.rating DESC, p.review_count DESC", nativeQuery = true)
-    Page<Place> findTopRatedPlacesWithImages(@Param("minRating") Double minRating, Pageable pageable);
+    // Removed problematic query method
     
     @Query("SELECT p FROM Place p ORDER BY p.popularity DESC, p.rating DESC")
     Page<Place> findPopularPlaces(Pageable pageable);
@@ -32,12 +31,12 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
            "LOWER(p.title) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
            "LOWER(p.name) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
            "LOWER(p.description) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
-           "LOWER(p.location) LIKE LOWER(CONCAT('%', :query, '%'))")
+           "LOWER(p.address) LIKE LOWER(CONCAT('%', :query, '%'))")
     Page<Place> searchPlaces(@Param("query") String query, Pageable pageable);
     
     @Query("SELECT p FROM Place p WHERE " +
            "(:category IS NULL OR p.category = :category) AND " +
-           "(:location IS NULL OR LOWER(p.location) LIKE LOWER(CONCAT('%', :location, '%')))")
+           "(:location IS NULL OR LOWER(p.address) LIKE LOWER(CONCAT('%', :location, '%')))")
     Page<Place> findPlacesWithFilters(
         @Param("category") String category,
         @Param("location") String location,
@@ -76,41 +75,23 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
     // New methods for age-based filtering and dynamic fetching
     @Query("""
         SELECT COUNT(*) FROM Place p 
-        WHERE (p.rating >= 3.0 OR p.isNewPlace = true OR p.openedDate > :sixMonthsAgo)
+        WHERE (p.rating >= 0.0 OR p.rating IS NULL)
     """)
-    long countRecommendablePlaces(@Param("sixMonthsAgo") LocalDate sixMonthsAgo);
-    
-    default long countRecommendablePlaces() {
-        return countRecommendablePlaces(LocalDate.now().minusMonths(6));
-    }
+    long countRecommendablePlaces();
     
     @Query("""
         SELECT COUNT(*) FROM Place p 
-        WHERE (p.rating >= 3.0 OR p.isNewPlace = true OR p.openedDate > :sixMonthsAgo)
+        WHERE (p.rating >= 0.0 OR p.rating IS NULL)
         AND (:category IS NULL OR p.category = :category)
     """)
-    long countRecommendablePlacesByCategory(
-        @Param("category") String category,
-        @Param("sixMonthsAgo") LocalDate sixMonthsAgo
-    );
-    
-    default long countRecommendablePlacesByCategory(String category) {
-        return countRecommendablePlacesByCategory(category, LocalDate.now().minusMonths(6));
-    }
+    long countRecommendablePlacesByCategory(@Param("category") String category);
     
     @Query("""
         SELECT p FROM Place p 
-        WHERE (p.rating >= 3.0 OR p.isNewPlace = true OR p.openedDate > :sixMonthsAgo)
-        ORDER BY p.rating DESC, p.firstSeenAt DESC
+        WHERE (p.rating >= 0.0 OR p.rating IS NULL)
+        ORDER BY p.rating DESC, p.name ASC
     """)
-    Page<Place> findRecommendablePlaces(
-        Pageable pageable,
-        @Param("sixMonthsAgo") LocalDate sixMonthsAgo
-    );
-    
-    default Page<Place> findRecommendablePlaces(Pageable pageable) {
-        return findRecommendablePlaces(pageable, LocalDate.now().minusMonths(6));
-    }
+    Page<Place> findRecommendablePlaces(Pageable pageable);
     
     @Query("""
         SELECT p FROM Place p 
@@ -142,6 +123,13 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
     @Query(value = """
         SELECT p.* FROM places p
         WHERE p.latitude IS NOT NULL AND p.longitude IS NOT NULL
+        AND (
+            6371 * acos(
+                cos(radians(:latitude)) * cos(radians(CAST(p.latitude AS DOUBLE PRECISION))) * 
+                cos(radians(CAST(p.longitude AS DOUBLE PRECISION)) - radians(:longitude)) + 
+                sin(radians(:latitude)) * sin(radians(CAST(p.latitude AS DOUBLE PRECISION)))
+            )
+        ) <= :distance
         ORDER BY p.review_count DESC, p.rating DESC
         LIMIT 20
     """, nativeQuery = true)
