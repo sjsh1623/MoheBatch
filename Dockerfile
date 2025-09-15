@@ -5,7 +5,7 @@ FROM gradle:8.4-jdk17 AS build
 WORKDIR /app
 
 # Copy gradle files
-COPY build.gradle.kts settings.gradle.kts ./
+COPY build.gradle settings.gradle ./
 
 # Copy source code
 COPY src ./src
@@ -44,8 +44,6 @@ ENV JAVA_OPTS="-XX:+UseContainerSupport \
                -XX:MaxRAMPercentage=75.0 \
                -XX:+UseG1GC \
                -XX:+UseStringDeduplication \
-               -XX:+UnlockExperimentalVMOptions \
-               -XX:+UseCGroupMemoryLimitForHeap \
                -Djava.security.egd=file:/dev/./urandom"
 
 # Run the application

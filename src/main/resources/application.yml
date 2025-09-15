@@ -54,6 +54,17 @@ spring:
   scheduling:
     enabled: true
 
+# LLM Configuration - Strict separation as per requirements
+# OpenAI: Description generation, keyword extraction, image prompts
+# Ollama: Vector embeddings ONLY
+openai:
+  api-key: ${OPENAI_API_KEY:}
+  model: ${OPENAI_MODEL:gpt-3.5-turbo}
+
+ollama:
+  host: ${OLLAMA_HOST:http://localhost:11434}
+  embedding-model: ${OLLAMA_EMBEDDING_MODEL:mxbai-embed-large}
+
 # Application-specific configuration
 app:
   external:
@@ -67,22 +78,23 @@ app:
       page-size: ${NAVER_PAGE_SIZE:100}
       max-pages: ${NAVER_MAX_PAGES:20}
       timeout: ${NAVER_TIMEOUT:10}
-      queries: 
+      queries:
         - "카페"
-        - "레스토랑" 
+        - "레스토랑"
         - "음식점"
-        - "펍"
-        - "바" 
         - "베이커리"
         - "디저트"
         - "공원"
         - "박물관"
         - "미술관"
         - "서점"
-        - "쇼핑몰"
         - "영화관"
         - "헬스장"
-        - "스파"
+        - "요가"
+        - "필라테스"
+        - "갤러리"
+        - "문화센터"
+        # 필터링 대상 제거: 클럽, 마트, 편의점, 스파 등
       seoul-coords:
         - { lat: 37.5665, lng: 126.9780, radius: 5000 }  # 중구 (명동, 종로)
         - { lat: 37.5172, lng: 127.0473, radius: 5000 }  # 강남구
@@ -111,9 +123,13 @@ app:
     base-url: ${MOHE_SPRING_BASE_URL:http://mohe-backend:8080}
 
   batch:
-    job-name: ${BATCH_JOB_NAME:data-ingestion-job}
-    chunk-size: ${BATCH_CHUNK_SIZE:500}
-    skip-limit: ${BATCH_SKIP_LIMIT:100}
+    job-name: ${BATCH_JOB_NAME:optimized-place-ingestion-job}
+    chunk-size: ${BATCH_CHUNK_SIZE:50}  # Reduced for LLM API performance
+    skip-limit: ${BATCH_SKIP_LIMIT:10}
+    max-retries: ${BATCH_MAX_RETRIES:2}
+    api-timeout: ${BATCH_API_TIMEOUT:30s}
+    strict-filtering: ${BATCH_STRICT_FILTERING:true}
+    auto-initialization: ${BATCH_AUTO_INITIALIZATION:true}
 
 # Actuator configuration for monitoring
 management:
