@@ -2,8 +2,8 @@ package com.example.ingestion.config;
 
 import com.example.ingestion.batch.processor.OptimizedPlaceEnrichmentProcessor;
 import com.example.ingestion.batch.reader.EnrichedPlace;
-import com.example.ingestion.batch.reader.MockPlaceReader;
-import com.example.ingestion.batch.writer.MockPlaceWriter;
+import com.example.ingestion.batch.reader.RealApiPlaceReader;
+import com.example.ingestion.batch.writer.DatabasePlaceWriter;
 import com.example.ingestion.dto.ProcessedPlaceJava;
 import com.example.ingestion.service.impl.DatabaseInitializationService;
 import org.slf4j.Logger;
@@ -97,9 +97,9 @@ public class SimplifiedBatchConfiguration {
     public Step placeEnrichmentStep(
             JobRepository jobRepository,
             PlatformTransactionManager transactionManager,
-            MockPlaceReader reader,
+            RealApiPlaceReader reader,
             OptimizedPlaceEnrichmentProcessor processor,
-            MockPlaceWriter writer
+            DatabasePlaceWriter writer
     ) {
         return new StepBuilder("placeEnrichmentStep", jobRepository)
                 .<EnrichedPlace, ProcessedPlaceJava>chunk(chunkSize, transactionManager)

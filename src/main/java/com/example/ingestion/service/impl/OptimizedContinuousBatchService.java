@@ -1,5 +1,6 @@
 package com.example.ingestion.service.impl;
 
+import com.example.ingestion.service.ContinuousBatchService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.*;
@@ -31,7 +32,7 @@ import java.util.concurrent.atomic.AtomicLong;
     havingValue = "true",
     matchIfMissing = false
 )
-public class OptimizedContinuousBatchService implements JobExecutionListener {
+public class OptimizedContinuousBatchService implements ContinuousBatchService, JobExecutionListener {
 
     private static final Logger logger = LoggerFactory.getLogger(OptimizedContinuousBatchService.class);
 

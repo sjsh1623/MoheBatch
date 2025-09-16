@@ -30,12 +30,20 @@ public class ProcessedPlaceJava {
     private String naverRawData; // JSON string
     private String googleRawData; // JSON string
     private List<Double> keywordVector; // Embedding vector from Ollama
+    private List<String> tags; // Place tags
+    private List<String> amenities; // Place amenities
+    private List<String> images; // Place images
+    private Integer reviewCount; // Number of reviews
 
     public ProcessedPlaceJava() {
         this.sourceFlags = new HashMap<>();
         this.gallery = List.of();
         this.keywordVector = List.of();
         this.types = List.of();
+        this.tags = List.of();
+        this.amenities = List.of();
+        this.images = List.of();
+        this.reviewCount = 0;
     }
 
     // Getters and Setters
@@ -101,4 +109,16 @@ public class ProcessedPlaceJava {
 
     public List<Double> getKeywordVector() { return keywordVector; }
     public void setKeywordVector(List<Double> keywordVector) { this.keywordVector = keywordVector; }
+
+    public List<String> getTags() { return tags; }
+    public void setTags(List<String> tags) { this.tags = tags; }
+
+    public List<String> getAmenities() { return amenities; }
+    public void setAmenities(List<String> amenities) { this.amenities = amenities; }
+
+    public List<String> getImages() { return images; }
+    public void setImages(List<String> images) { this.images = images; }
+
+    public Integer getReviewCount() { return reviewCount; }
+    public void setReviewCount(Integer reviewCount) { this.reviewCount = reviewCount; }
 }
