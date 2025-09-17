@@ -22,6 +22,9 @@ public class PlaceImage {
     
     @Column(name = "image_url", nullable = false, length = 2048)
     private String imageUrl;
+
+    @Column(name = "image_path", nullable = false, length = 2048)
+    private String imagePath;
     
     @Column(name = "image_type")
     @Enumerated(EnumType.STRING)
@@ -57,10 +60,20 @@ public class PlaceImage {
     
     @Column(name = "is_verified")
     private Boolean isVerified = false; // Manual verification flag
-    
+
+    // AI Generation fields
+    @Column(name = "is_ai_generated")
+    private Boolean isAiGenerated = false;
+
+    @Column(name = "ai_model")
+    private String aiModel; // e.g., "dall-e-3", "midjourney", etc.
+
+    @Column(name = "prompt_used", length = 2048)
+    private String promptUsed; // Prompt used for AI generation
+
     @Column(name = "created_at")
     private OffsetDateTime createdAt = OffsetDateTime.now();
-    
+
     @Column(name = "updated_at")
     private OffsetDateTime updatedAt = OffsetDateTime.now();
     
@@ -96,6 +109,14 @@ public class PlaceImage {
     
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
+    }
+
+    public String getImagePath() {
+        return imagePath;
+    }
+
+    public void setImagePath(String imagePath) {
+        this.imagePath = imagePath;
     }
     
     public ImageType getImageType() {
@@ -200,5 +221,30 @@ public class PlaceImage {
     
     public void setUpdatedAt(OffsetDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    // AI Generation getters and setters
+    public Boolean getIsAiGenerated() {
+        return isAiGenerated;
+    }
+
+    public void setIsAiGenerated(Boolean isAiGenerated) {
+        this.isAiGenerated = isAiGenerated;
+    }
+
+    public String getAiModel() {
+        return aiModel;
+    }
+
+    public void setAiModel(String aiModel) {
+        this.aiModel = aiModel;
+    }
+
+    public String getPromptUsed() {
+        return promptUsed;
+    }
+
+    public void setPromptUsed(String promptUsed) {
+        this.promptUsed = promptUsed;
     }
 }

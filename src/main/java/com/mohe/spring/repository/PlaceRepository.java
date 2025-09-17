@@ -221,4 +221,16 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
         ORDER BY p.rating DESC, p.reviewCount DESC
     """)
     List<Place> findGeneralPlacesForLLM(Pageable pageable);
+
+    /**
+     * 이미지가 없는 장소들을 찾기 (배치 이미지 업데이트용)
+     */
+    @Query("""
+        SELECT p FROM Place p
+        WHERE p.id NOT IN (
+            SELECT DISTINCT pi.place.id FROM PlaceImage pi
+        )
+        ORDER BY p.rating DESC NULLS LAST, p.reviewCount DESC NULLS LAST
+    """)
+    List<Place> findPlacesWithoutImages();
 }

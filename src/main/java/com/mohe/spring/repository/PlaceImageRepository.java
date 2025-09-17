@@ -87,9 +87,34 @@ public interface PlaceImageRepository extends JpaRepository<PlaceImage, Long> {
      */
     @Query("""
         SELECT pi.imageType, COUNT(pi.id)
-        FROM PlaceImage pi 
-        WHERE pi.place.id = :placeId 
+        FROM PlaceImage pi
+        WHERE pi.place.id = :placeId
         GROUP BY pi.imageType
     """)
     List<Object[]> getImageCountsByType(@Param("placeId") Long placeId);
+
+    /**
+     * Find AI generated images for a place
+     */
+    List<PlaceImage> findByPlaceIdAndIsAiGeneratedTrue(Long placeId);
+
+    /**
+     * Find all AI generated images
+     */
+    List<PlaceImage> findByIsAiGeneratedTrueOrderByCreatedAtDesc(Pageable pageable);
+
+    /**
+     * Check if place has AI generated images
+     */
+    boolean existsByPlaceIdAndIsAiGeneratedTrue(Long placeId);
+
+    /**
+     * Count AI generated images for a place
+     */
+    int countByPlaceIdAndIsAiGeneratedTrue(Long placeId);
+
+    /**
+     * Find images by AI model
+     */
+    List<PlaceImage> findByAiModelOrderByCreatedAtDesc(String aiModel, Pageable pageable);
 }

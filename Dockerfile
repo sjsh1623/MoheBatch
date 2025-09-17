@@ -23,6 +23,16 @@ WORKDIR /app
 # Copy built jar from build stage
 COPY --from=build /app/build/libs/*.jar app.jar
 
-# Run the application
+# Run the application with JVM HTTP 클라이언트 최적화 설정
 EXPOSE 8080
-CMD ["java", "-jar", "app.jar"]
+CMD ["java", \
+    "-Djdk.httpclient.responseBufferSize=65536", \
+    "-Djdk.httpclient.maxResponseHeaderSize=32768", \
+    "-Dhttp.agent=MoheSpring/1.0", \
+    "-Djava.net.useSystemProxies=false", \
+    "-Dsun.net.http.allowRestrictedHeaders=true", \
+    "-Dhttp.keepAlive=true", \
+    "-Dhttp.maxConnections=20", \
+    "-Xms512m", \
+    "-Xmx1g", \
+    "-jar", "app.jar"]

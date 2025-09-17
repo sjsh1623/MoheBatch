@@ -12,7 +12,7 @@ import java.time.Duration;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
-    @Value("${IMAGE_STORAGE_DIR:/Users/andrewlim/Desktop/Developer/Mohe/image}")
+    @Value("${IMAGE_STORAGE_DIR:/host/images}")
     private String imageStorageDir;
 
     @Bean
@@ -27,6 +27,10 @@ public class WebConfig implements WebMvcConfigurer {
         // Serve images from /image directory at localhost:8080/image/
         String resourceLocation = "file:" + imageStorageDir + "/";
         registry.addResourceHandler("/image/**")
+                .addResourceLocations(resourceLocation);
+
+        // Serve images from /images/places directory
+        registry.addResourceHandler("/images/places/**")
                 .addResourceLocations(resourceLocation);
     }
 }
