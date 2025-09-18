@@ -28,6 +28,16 @@ services:
         condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: docker
+      NAVER_CLIENT_ID: ${NAVER_CLIENT_ID}
+      NAVER_CLIENT_SECRET: ${NAVER_CLIENT_SECRET}
+      GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      IS_OPENAI_ACTIVE: ${IS_OPENAI_ACTIVE}
+      OLLAMA_HOST: ${OLLAMA_HOST}
+      OLLAMA_MODEL: ${OLLAMA_MODEL}
+      JWT_SECRET: ${JWT_SECRET}
+    env_file:
+      - .env
     networks:
       - mohe-network
     restart: unless-stopped

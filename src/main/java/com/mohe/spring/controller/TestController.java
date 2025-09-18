@@ -1,11 +1,13 @@
 package com.mohe.spring.controller;
 
 import com.mohe.spring.service.BatchService;
+import com.mohe.spring.service.ImageGenerationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.HashMap;
 
 @RestController
 @RequestMapping("/test")
@@ -167,6 +169,24 @@ public class TestController {
         }
     }
 
+    @GetMapping("/create-placeholder-images")
+    public ResponseEntity<Map<String, Object>> createPlaceholderImages() {
+        try {
+            int created = batchService.createPlaceholderImages();
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "created", created,
+                "message", "Placeholder image creation completed"
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of(
+                "success", false,
+                "error", e.getMessage(),
+                "message", "Placeholder image creation failed"
+            ));
+        }
+    }
+
     @GetMapping("/batch-update-images")
     public ResponseEntity<Map<String, Object>> batchUpdateImages() {
         try {
@@ -181,6 +201,51 @@ public class TestController {
                 "success", false,
                 "error", e.getMessage(),
                 "message", "Batch image update failed"
+            ));
+        }
+    }
+
+    @GetMapping("/test-category-mapping")
+    public ResponseEntity<Map<String, Object>> testCategoryMapping(@RequestParam(required = false) String category) {
+        try {
+            if (category == null) {
+                // 현재 데이터베이스의 모든 카테고리 매핑 테스트
+                Map<String, String> allMappings = new HashMap<>();
+
+                // 샘플 카테고리들로 테스트
+                String[] testCategories = {
+                    "카페,디저트>와플", "음식점>카페,디저트", "한식>조개요리",
+                    "술집>바(BAR)", "갤러리카페", "음식점>양식", "음식점>햄버거"
+                };
+
+                for (String testCategory : testCategories) {
+                    ImageGenerationService imageService = new ImageGenerationService();
+                    String defaultPath = imageService.getDefaultImagePath(testCategory);
+                    allMappings.put(testCategory, defaultPath);
+                }
+
+                return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "mappings", allMappings,
+                    "message", "Category mapping test completed"
+                ));
+            } else {
+                // 특정 카테고리 테스트
+                ImageGenerationService imageService = new ImageGenerationService();
+                String defaultPath = imageService.getDefaultImagePath(category);
+
+                return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "category", category,
+                    "defaultPath", defaultPath,
+                    "message", "Single category mapping test completed"
+                ));
+            }
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of(
+                "success", false,
+                "error", e.getMessage(),
+                "message", "Category mapping test failed"
             ));
         }
     }

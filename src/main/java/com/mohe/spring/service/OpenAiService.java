@@ -8,12 +8,10 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Service
 public class OpenAiService implements LlmService {
@@ -89,6 +87,88 @@ public class OpenAiService implements LlmService {
         prompt.append("이유: [추천 이유 설명]");
 
         return prompt.toString();
+    }
+
+    /**
+     * 장소 설명 생성 전용 메소드
+     */
+    public String generatePlaceDescription(String placeName, String category, String address) {
+        try {
+            String prompt = String.format(
+                "다음 장소에 대해 감성적이고 매력적인 설명을 한국어로 100자 내외로 작성해주세요.\n\n" +
+                "장소명: %s\n" +
+                "카테고리: %s\n" +
+                "주소: %s\n\n" +
+                "방문객들이 이 장소에 대해 흥미를 느낄 수 있도록 매력적으로 작성해주세요. " +
+                "설명만 답변하고 다른 내용은 포함하지 마세요.",
+                placeName,
+                category != null ? category : "일반",
+                address != null ? address : ""
+            );
+
+            return callOpenAi(prompt);
+
+        } catch (Exception e) {
+            logger.error("❌ OpenAI 설명 생성 실패 for {}: {}", placeName, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 키워드 추출 전용 메소드
+     */
+    public List<String> extractKeywords(String placeName, String category, String description) {
+        try {
+            String prompt = String.format(
+                "다음 장소 정보에서 핵심 키워드 5개를 추출해주세요. 콤마로 구분해서 키워드만 답변해주세요.\n\n" +
+                "장소명: %s\n" +
+                "카테고리: %s\n" +
+                "설명: %s\n\n" +
+                "예시: 카페, 디저트, 분위기, 데이트, 힐링",
+                placeName,
+                category != null ? category : "",
+                description != null ? description : ""
+            );
+
+            String response = callOpenAi(prompt);
+            if (response != null && !response.trim().isEmpty()) {
+                return Arrays.asList(response.split(","))
+                    .stream()
+                    .map(String::trim)
+                    .filter(keyword -> !keyword.isEmpty())
+                    .collect(Collectors.toList());
+            }
+
+        } catch (Exception e) {
+            logger.error("❌ 키워드 추출 실패 for {}: {}", placeName, e.getMessage());
+        }
+
+        return Collections.emptyList();
+    }
+
+    /**
+     * 이미지 생성 프롬프트 생성
+     */
+    public String generateImagePrompt(String placeName, String category, String description) {
+        try {
+            String prompt = String.format(
+                "다음 장소의 이미지를 생성하기 위한 영어 프롬프트를 작성해주세요.\n\n" +
+                "장소명: %s\n" +
+                "카테고리: %s\n" +
+                "설명: %s\n\n" +
+                "이미지 생성 AI가 이해할 수 있도록 영어로 상세하고 시각적인 프롬프트를 작성해주세요. " +
+                "프롬프트만 답변하고 다른 내용은 포함하지 마세요.",
+                placeName,
+                category != null ? category : "",
+                description != null ? description : ""
+            );
+
+            return callOpenAi(prompt);
+
+        } catch (Exception e) {
+            logger.error("❌ 이미지 프롬프트 생성 실패 for {}: {}", placeName, e.getMessage());
+            return null;
+        }
     }
 
     private String callOpenAi(String prompt) {

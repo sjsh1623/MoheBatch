@@ -118,6 +118,16 @@ public class Place {
     
     @Column(name = "keyword_vector", columnDefinition = "text")
     private String keywordVector; // Stored as JSON array string format
+
+    // New fields for enhanced batch processing
+    @Column(name = "description_vector", columnDefinition = "text")
+    private String descriptionVector; // Ollama embedding vector as JSON string
+
+    @Column(name = "keywords", columnDefinition = "text")
+    private String keywords; // OpenAI extracted keywords as comma-separated string
+
+    @Column(name = "telephone")
+    private String telephone; // From Naver API
     
     // Relationships
     @OneToMany(mappedBy = "place", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
@@ -423,7 +433,31 @@ public class Place {
     public void setKeywordVector(String keywordVector) {
         this.keywordVector = keywordVector;
     }
-    
+
+    public String getDescriptionVector() {
+        return descriptionVector;
+    }
+
+    public void setDescriptionVector(String descriptionVector) {
+        this.descriptionVector = descriptionVector;
+    }
+
+    public String getKeywords() {
+        return keywords;
+    }
+
+    public void setKeywords(String keywords) {
+        this.keywords = keywords;
+    }
+
+    public String getTelephone() {
+        return telephone;
+    }
+
+    public void setTelephone(String telephone) {
+        this.telephone = telephone;
+    }
+
     public List<Bookmark> getBookmarks() {
         return bookmarks;
     }

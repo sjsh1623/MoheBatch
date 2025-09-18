@@ -117,4 +117,14 @@ public interface PlaceImageRepository extends JpaRepository<PlaceImage, Long> {
      * Find images by AI model
      */
     List<PlaceImage> findByAiModelOrderByCreatedAtDesc(String aiModel, Pageable pageable);
+
+    /**
+     * Find images by source (for batch processing)
+     */
+    List<PlaceImage> findBySource(ImageSource source);
+
+    /**
+     * Find PENDING images for batch update
+     */
+    List<PlaceImage> findBySourceOrderByCreatedAtAsc(ImageSource source);
 }

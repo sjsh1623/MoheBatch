@@ -70,6 +70,7 @@ Thumbs.db
 logs/
 temp/
 tmp/
+.env
 .env.local
 .env.*.local
 src/main/resources/application.yml

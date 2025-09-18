@@ -63,34 +63,26 @@ public class ScheduledBatchService {
     }
 
     /**
-     * 5분마다 자동 배치 처리 (연속적으로) - 임시 비활성화
+     * 30초마다 자동 배치 처리 (고속 수집) - 원래 BatchService 사용
      */
-    // @Scheduled(fixedRate = 300000) // 5분 = 300,000ms
+    @Scheduled(fixedRate = 30000) // 30초 = 30,000ms
     public void automaticContinuousBatch() {
-        if (isRunning.compareAndSet(false, true)) {
-            try {
-                logger.info("🔄 Starting scheduled continuous batch processing");
+        try {
+            logger.info("🚀 Starting scheduled HIGH-SPEED batch processing (30초 간격) - using original BatchService");
 
-                // 추가 데이터 수집 (기존 데이터는 유지)
-                int newPlaces = batchService.collectRealPlaceData();
-                int newImages = batchService.generateAiImagesForPlaces();
+            // 원래 작동하던 BatchService 사용 (50개 제한, 이미지 생성 건너뛰기)
+            int newPlaces = batchService.collectRealPlaceData();
+            logger.info("✅ Scheduled batch completed: {} new places collected, 이미지 생성 건너뛰기", newPlaces);
 
-                logger.info("✅ Scheduled batch completed: {} new places, {} new images", newPlaces, newImages);
-
-            } catch (Exception e) {
-                logger.error("❌ Scheduled batch processing failed", e);
-            } finally {
-                isRunning.set(false);
-            }
-        } else {
-            logger.info("Previous batch is still running, skipping this cycle");
+        } catch (Exception e) {
+            logger.error("❌ Scheduled batch processing failed", e);
         }
     }
 
     /**
-     * 매 30분마다 상태 확인 및 보고
+     * 매 1분마다 상태 확인 및 보고 (고속 모니터링)
      */
-    @Scheduled(fixedRate = 1800000) // 30분 = 1,800,000ms
+    @Scheduled(fixedRate = 60000) // 1분 = 60,000ms
     public void statusReport() {
         try {
             Map<String, Object> status = batchService.getBatchStatus();

@@ -35,8 +35,14 @@ public class ImageGenerationService {
     @Value("${OPENAI_API_KEY:}")
     private String openaiApiKey;
 
+    @Value("${GEMINI_API_KEY:}")
+    private String geminiApiKey;
+
     @Value("${IMAGE_STORAGE_DIR:/host/images}")
     private String imageStorageDir;
+
+    @Value("${IMAGE_SERVER_BASE_URL:http://localhost:1000}")
+    private String imageServerBaseUrl;
 
     public ImageGenerationService() {
         this.restTemplate = new RestTemplate();
@@ -49,8 +55,8 @@ public class ImageGenerationService {
     public PlaceImage generateKoreanPlaceImage(Place place) {
         try {
             // 평점 확인 (3.0 이상만 AI 이미지 생성)
-            Double rating = place.getRating();
-            boolean shouldGenerateAI = rating != null && rating >= 3.0;
+            java.math.BigDecimal rating = place.getRating();
+            boolean shouldGenerateAI = rating != null && rating.compareTo(java.math.BigDecimal.valueOf(3.0)) >= 0;
 
             if (shouldGenerateAI) {
                 return generateAIImage(place);
@@ -124,8 +130,8 @@ public class ImageGenerationService {
             String category = place.getCategory() != null ? place.getCategory() : "카페";
             String defaultImagePath = getDefaultImagePath(category);
 
-            Double rating = place.getRating();
-            String ratingInfo = rating != null ? String.format("%.1f", rating) : "N/A";
+            java.math.BigDecimal rating = place.getRating();
+            String ratingInfo = rating != null ? String.format("%.1f", rating.doubleValue()) : "N/A";
 
             logger.info("🔄 Using default image for place: {} (rating: {}★) -> {}",
                 place.getName(), ratingInfo, defaultImagePath);
@@ -153,18 +159,123 @@ public class ImageGenerationService {
     }
 
     /**
-     * 카테고리별 기본 이미지 경로 반환
+     * 카테고리별 기본 이미지 경로 반환 (URL 슬러그 기반) - Public 메서드
      */
-    private String getDefaultImagePath(String category) {
-        Map<String, String> defaultImages = new HashMap<>();
-        defaultImages.put("음식점>카페,디저트", "/images/defaults/cafe_default.jpg");
-        defaultImages.put("음식점>한식", "/images/defaults/korean_default.jpg");
-        defaultImages.put("음식점>중식", "/images/defaults/chinese_default.jpg");
-        defaultImages.put("음식점>일식", "/images/defaults/japanese_default.jpg");
-        defaultImages.put("음식점>양식", "/images/defaults/western_default.jpg");
-        defaultImages.put("음식점>분식", "/images/defaults/snack_default.jpg");
+    public String getDefaultImagePath(String category) {
+        // 1단계: 카테고리를 표준화된 영어 카테고리로 매핑
+        String standardCategory = mapToStandardCategory(category);
 
-        return defaultImages.getOrDefault(category, "/images/defaults/general_default.jpg");
+        // 2단계: 표준 카테고리를 URL 슬러그로 변환
+        String slug = convertToSlug(standardCategory);
+
+        // 3단계: 슬러그를 기본 이미지 URL로 매핑
+        Map<String, String> defaultImageMap = getDefaultImageMap();
+
+        return defaultImageMap.getOrDefault(slug, "/default.jpg");
+    }
+
+    /**
+     * 한국어/기타 카테고리를 표준 영어 카테고리로 매핑
+     */
+    private String mapToStandardCategory(String category) {
+        if (category == null) return "default";
+
+        String lowerCategory = category.toLowerCase();
+
+        // 한국어 카테고리 매핑
+        if (lowerCategory.contains("카페") || lowerCategory.contains("cafe") || lowerCategory.contains("디저트")) {
+            return "Cafe";
+        } else if (lowerCategory.contains("한식") || lowerCategory.contains("korean")) {
+            return "Korean Restaurant";
+        } else if (lowerCategory.contains("중식") || lowerCategory.contains("chinese")) {
+            return "Chinese Restaurant";
+        } else if (lowerCategory.contains("일식") || lowerCategory.contains("japanese") || lowerCategory.contains("sushi")) {
+            return "Japanese Restaurant";
+        } else if (lowerCategory.contains("양식") || lowerCategory.contains("western") || lowerCategory.contains("pasta") || lowerCategory.contains("steak")) {
+            return "Western Restaurant";
+        } else if (lowerCategory.contains("바") || lowerCategory.contains("bar") || lowerCategory.contains("칵테일")) {
+            return "Bar";
+        } else if (lowerCategory.contains("분식") || lowerCategory.contains("fast") || lowerCategory.contains("burger")) {
+            return "Fast Food";
+        } else if (lowerCategory.contains("베이커리") || lowerCategory.contains("bakery") || lowerCategory.contains("빵")) {
+            return "Bakery";
+        } else if (lowerCategory.contains("해산물") || lowerCategory.contains("seafood") || lowerCategory.contains("조개")) {
+            return "Seafood Restaurant";
+        } else if (lowerCategory.contains("궁") || lowerCategory.contains("palace")) {
+            return "Palace";
+        } else if (lowerCategory.contains("박물관") || lowerCategory.contains("museum")) {
+            return "Museum";
+        } else if (lowerCategory.contains("갤러리") || lowerCategory.contains("gallery")) {
+            return "Art Gallery";
+        } else if (lowerCategory.contains("공원") || lowerCategory.contains("park")) {
+            return "Park";
+        } else if (lowerCategory.contains("호텔") || lowerCategory.contains("hotel")) {
+            return "Hotel";
+        } else if (lowerCategory.contains("스파") || lowerCategory.contains("spa")) {
+            return "Spa";
+        } else if (lowerCategory.contains("클럽") || lowerCategory.contains("club")) {
+            return "Club";
+        } else if (lowerCategory.contains("시장") || lowerCategory.contains("market")) {
+            return "Market";
+        } else if (lowerCategory.contains("쇼핑") || lowerCategory.contains("mall")) {
+            return "Shopping Mall";
+        } else if (lowerCategory.contains("도서관") || lowerCategory.contains("library")) {
+            return "Library";
+        } else if (lowerCategory.contains("극장") || lowerCategory.contains("theater")) {
+            return "Theater";
+        } else if (lowerCategory.contains("테마파크") || lowerCategory.contains("theme")) {
+            return "Theme Park";
+        } else if (lowerCategory.contains("체험") || lowerCategory.contains("experience")) {
+            return "Experience Space";
+        }
+
+        return "default";
+    }
+
+    /**
+     * 표준 카테고리를 URL 슬러그로 변환
+     */
+    private String convertToSlug(String category) {
+        if (category == null || category.equals("default")) return "default";
+
+        return category.toLowerCase()
+                .replaceAll("[^a-z0-9\\s]", "") // 특수문자 제거
+                .replaceAll("\\s+", "-") // 공백을 하이픈으로
+                .trim();
+    }
+
+    /**
+     * 슬러그별 기본 이미지 URL 매핑
+     */
+    private Map<String, String> getDefaultImageMap() {
+        Map<String, String> imageMap = new HashMap<>();
+
+        // 사용자 요청에 따른 매핑 (null 절대 사용 안함)
+        imageMap.put("cafe", "/cafe.jpg");
+        imageMap.put("palace", "/palace.jpg");
+        imageMap.put("bar", "/bar.jpg");
+        imageMap.put("korean-restaurant", "/korean-restaurant.jpg");
+        imageMap.put("western-restaurant", "/western-restaurant.jpg");
+        imageMap.put("chinese-restaurant", "/chinese-restaurant.jpg");
+        imageMap.put("museum", "/museum.jpg");
+        imageMap.put("theme-park", "/theme-park.jpg");
+        imageMap.put("art-gallery", "/art-gallery.jpg");
+        imageMap.put("theater", "/theater.jpg");
+        imageMap.put("market", "/market.jpg");
+        imageMap.put("shopping-mall", "/shopping-mall.jpg");
+        imageMap.put("park", "/park.jpg");
+        imageMap.put("library", "/library.jpg");
+        imageMap.put("hotel", "/hotel.jpg");
+        imageMap.put("spa", "/spa.jpg");
+        imageMap.put("club", "/club.jpg");
+        imageMap.put("bakery", "/bakery.jpg");
+        imageMap.put("fast-food", "/fast-food.jpg");
+        imageMap.put("japanese-restaurant", "/japanese-restaurant.jpg");
+        imageMap.put("seafood-restaurant", "/seafood-restaurant.jpg");
+        imageMap.put("experience-space", "/experience-space.jpg");
+        imageMap.put("default", "/default.jpg");
+
+        return imageMap;
     }
 
     /**
@@ -397,6 +508,155 @@ public class ImageGenerationService {
 
         } finally {
             connection.disconnect();
+        }
+    }
+
+    /**
+     * Gemini API로 장소 이미지 생성 (사용자 요구사항)
+     */
+    public String generatePlaceImage(Place place, String imagePrompt) {
+        try {
+            if (geminiApiKey == null || geminiApiKey.isEmpty()) {
+                logger.warn("Gemini API 키가 없어서 기본 이미지 사용: {}", place.getName());
+                return getDefaultImagePath(place.getCategory());
+            }
+
+            logger.info("🎨 Gemini API로 이미지 생성 시작: {}", place.getName());
+
+            // Gemini API 호출
+            String imageUrl = callGeminiImageAPI(imagePrompt, place.getName());
+
+            if (imageUrl != null) {
+                // 이미지 다운로드 및 로컬 저장
+                String localPath = downloadAndSaveGeminiImage(imageUrl, place.getName());
+
+                if (localPath != null) {
+                    // localhost:1000으로 접근 가능한 URL 반환
+                    String accessUrl = imageServerBaseUrl + localPath;
+                    logger.info("✅ Gemini 이미지 생성 완료: {} -> {}", place.getName(), accessUrl);
+                    return accessUrl;
+                }
+            }
+
+            // 실패시 기본 이미지 반환
+            logger.warn("⚠️ Gemini 이미지 생성 실패, 기본 이미지 사용: {}", place.getName());
+            return getDefaultImagePath(place.getCategory());
+
+        } catch (Exception e) {
+            logger.error("❌ Gemini 이미지 생성 중 오류 for {}: {}", place.getName(), e.getMessage());
+            return getDefaultImagePath(place.getCategory());
+        }
+    }
+
+    /**
+     * Gemini Image Generation API 호출
+     */
+    private String callGeminiImageAPI(String prompt, String placeName) {
+        try {
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent";
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("Authorization", "Bearer " + geminiApiKey);
+
+            // Gemini API 요청 본문 구성
+            Map<String, Object> requestBody = new HashMap<>();
+            Map<String, Object> contents = new HashMap<>();
+            Map<String, Object> parts = new HashMap<>();
+            parts.put("text", "Generate an image: " + prompt);
+            contents.put("parts", new Object[]{parts});
+            requestBody.put("contents", new Object[]{contents});
+
+            // 이미지 생성 설정
+            Map<String, Object> generationConfig = new HashMap<>();
+            generationConfig.put("temperature", 0.7);
+            generationConfig.put("topK", 40);
+            generationConfig.put("topP", 0.9);
+            requestBody.put("generationConfig", generationConfig);
+
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+
+            ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
+
+            if (response.getStatusCode().is2xxSuccessful()) {
+                JsonNode responseNode = objectMapper.readTree(response.getBody());
+
+                // Gemini 응답에서 이미지 URL 추출
+                JsonNode candidates = responseNode.path("candidates");
+                if (candidates.isArray() && candidates.size() > 0) {
+                    JsonNode content = candidates.get(0).path("content");
+                    JsonNode contentParts = content.path("parts");
+                    if (contentParts.isArray() && contentParts.size() > 0) {
+                        String imageData = contentParts.get(0).path("inlineData").path("data").asText();
+                        if (!imageData.isEmpty()) {
+                            // Base64 이미지 데이터를 처리하여 URL 반환
+                            return processGeminiImageData(imageData, placeName);
+                        }
+                    }
+                }
+            }
+
+            logger.error("❌ Gemini API 응답 처리 실패 for {}", placeName);
+            return null;
+
+        } catch (Exception e) {
+            logger.error("❌ Gemini API 호출 실패 for {}: {}", placeName, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Gemini에서 받은 Base64 이미지 데이터 처리
+     */
+    private String processGeminiImageData(String base64Data, String placeName) {
+        try {
+            // Base64 디코딩
+            byte[] imageBytes = java.util.Base64.getDecoder().decode(base64Data);
+
+            // 안전한 파일명 생성
+            String safeName = placeName.replaceAll("[^a-zA-Z0-9가-힣\\s\\-_]", "")
+                                       .replaceAll("\\s+", "_")
+                                       .trim();
+            if (safeName.length() > 50) {
+                safeName = safeName.substring(0, 50);
+            }
+
+            String fileName = safeName + "_" + UUID.randomUUID().toString().substring(0, 8) + "_gemini.jpg";
+
+            // 저장 디렉토리 확인 및 생성
+            Path storageDir = Paths.get(imageStorageDir);
+            if (!Files.exists(storageDir)) {
+                Files.createDirectories(storageDir);
+                logger.info("Created image storage directory: {}", storageDir);
+            }
+
+            // 파일 저장
+            Path filePath = storageDir.resolve(fileName);
+            Files.write(filePath, imageBytes);
+
+            // 웹 접근 가능한 경로 반환
+            String webPath = "/images/places/" + fileName;
+            logger.info("✅ Gemini 이미지 저장 완료: {} -> {} ({} bytes)", placeName, webPath, imageBytes.length);
+
+            return webPath;
+
+        } catch (Exception e) {
+            logger.error("❌ Gemini 이미지 데이터 처리 실패 for {}: {}", placeName, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Gemini 이미지 다운로드 및 저장
+     */
+    private String downloadAndSaveGeminiImage(String imageUrl, String placeName) {
+        try {
+            // 기존 다운로드 메소드 재사용
+            return downloadAndSaveImage(imageUrl, placeName);
+
+        } catch (Exception e) {
+            logger.error("❌ Gemini 이미지 다운로드 실패 for {}: {}", placeName, e.getMessage());
+            return null;
         }
     }
 }

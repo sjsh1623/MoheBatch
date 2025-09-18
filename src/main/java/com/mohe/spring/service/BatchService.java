@@ -11,8 +11,10 @@ import com.mohe.spring.controller.BatchController.InternalPlaceIngestResponse;
 import com.mohe.spring.controller.BatchController.DatabaseCleanupResponse;
 import com.mohe.spring.entity.Place;
 import com.mohe.spring.entity.PlaceImage;
+import com.mohe.spring.entity.ImageSource;
 import com.mohe.spring.repository.PlaceRepository;
 import com.mohe.spring.repository.PlaceImageRepository;
+import com.mohe.spring.dto.KoreanRegionDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,6 +45,9 @@ public class BatchService {
 
     @Autowired
     private ImageGenerationService imageGenerationService;
+
+    @Autowired
+    private KoreanGovernmentApiService koreanGovernmentApiService;
 
     // Note: These services are not used in this version - using direct API calls instead
 
@@ -81,9 +86,47 @@ public class BatchService {
     @Value("${GOOGLE_PLACES_API_KEY:}")
     private String googleApiKey;
 
-    // 한국 주요 지역 쿼리
-    private static final List<String> KOREAN_LOCATIONS = Arrays.asList(
-            "카페", "데이트", "박물관", "바", "칵테일", "재즈", "맛집"
+    // 현재 처리 중인 지역 인덱스 (순환 처리용)
+    private static volatile int currentRegionIndex = 0;
+
+    // 다양한 검색 쿼리 - 대폭 확장
+    private static final List<String> SEARCH_QUERIES = Arrays.asList(
+            // 음식점 카테고리
+            "카페", "맛집", "레스토랑", "한식", "중식", "일식", "양식", "이탈리안", "프렌치", "베트남", "태국", "인도",
+            "멕시칸", "분식", "치킨", "피자", "햄버거", "파스타", "스테이크", "초밥", "라멘", "쌀국수", "팟타이",
+            "삼겹살", "갈비", "불고기", "냉면", "김치찌개", "된장찌개", "부대찌개", "순대국", "설렁탕", "곰탕",
+
+            // 카페/디저트
+            "디저트", "베이커리", "빵집", "케이크", "와플", "크레페", "아이스크림", "도넛", "마카롱", "티라미수",
+            "브런치", "샐러드", "샌드위치", "토스트", "커피", "차", "라떼", "프라푸치노", "스무디", "버블티",
+
+            // 술집/바
+            "바", "칵테일", "와인", "맥주", "소주", "막걸리", "위스키", "보드카", "진", "럼", "테킬라",
+            "요리주점", "이자카야", "포차", "호프", "펍", "클럽", "재즈바", "루프탑", "야경", "데이트",
+
+            // 문화/엔터테인먼트
+            "박물관", "미술관", "갤러리", "전시회", "공연", "콘서트", "뮤지컬", "연극", "영화관", "노래방",
+            "PC방", "볼링", "당구", "포켓볼", "다트", "보드게임", "방탈출", "VR", "코인노래방", "DVD방",
+
+            // 쇼핑/라이프스타일
+            "쇼핑", "백화점", "아울렛", "마트", "편의점", "서점", "문구점", "화장품", "의류", "신발",
+            "가방", "액세서리", "전자제품", "스마트폰", "컴퓨터", "가구", "인테리어", "꽃집", "선물",
+
+            // 헬스/뷰티
+            "헬스장", "피트니스", "요가", "필라테스", "수영장", "사우나", "찜질방", "마사지", "스파", "네일",
+            "헤어샵", "미용실", "피부관리", "성형외과", "치과", "안과", "한의원", "병원", "약국",
+
+            // 취미/레저
+            "재즈", "클래식", "힙합", "EDM", "팝송", "발라드", "트로트", "국악", "댄스", "밴드",
+            "기타", "피아노", "드럼", "바이올린", "색소폰", "플룻", "첼로", "보컬", "작곡", "레코딩",
+
+            // 교육/학습
+            "학원", "과외", "스터디카페", "도서관", "독서실", "컴퓨터학원", "요리학원", "어학원", "예술학원",
+            "피아노학원", "태권도", "검도", "유도", "복싱", "MMA", "축구", "농구", "야구", "테니스",
+
+            // 서비스업
+            "세탁소", "수선", "열쇠", "구두수선", "시계수리", "핸드폰수리", "자동차정비", "주유소", "세차장",
+            "렌터카", "택시", "대리운전", "숙박", "호텔", "모텔", "펜션", "게스트하우스", "에어비앤비"
     );
 
     /**
@@ -101,16 +144,16 @@ public class BatchService {
             // 2. 실제 API에서 장소 데이터 수집
             int collectedPlaces = collectRealPlaceData();
 
-            // 3. AI 이미지 생성
-            int generatedImages = generateAiImagesForPlaces();
+            // 3. 이미지 생성 건너뛰기 - Default Path만 사용
+            logger.info("이미지 생성 건너뛰기 - Default Path 사용");
 
             result.put("status", "success");
             result.put("collectedPlaces", collectedPlaces);
-            result.put("generatedImages", generatedImages);
+            result.put("generatedImages", 0);
             result.put("timestamp", OffsetDateTime.now().toString());
 
-            logger.info("Batch processing completed successfully: {} places, {} images",
-                       collectedPlaces, generatedImages);
+            logger.info("Batch processing completed successfully: {} places, 이미지 생성 건너뛰기",
+                       collectedPlaces);
 
         } catch (Exception e) {
             logger.error("Batch processing failed", e);
@@ -176,38 +219,120 @@ public class BatchService {
      * 실제 API에서 장소 데이터 수집 (공개 메소드로 변경)
      */
     public int collectRealPlaceData() {
-        logger.info("Starting real place data collection from Naver API");
+        logger.info("🏛️ Starting real place data collection using Korean Government API + Naver + Google APIs");
         int totalCollected = 0;
 
-        // 랜덤하게 5개 지역 선택
-        List<String> locations = new ArrayList<>(KOREAN_LOCATIONS);
-        Collections.shuffle(locations);
-        List<String> selectedLocations = locations.subList(0, Math.min(5, locations.size()));
+        try {
+            // 1. 정부 API에서 실제 지역 정보 가져오기
+            List<String> regionNames = koreanGovernmentApiService.fetchLocationNamesForSearch();
 
-        for (String query : selectedLocations) {
+            // 지역을 무작위로 섞고 일부만 선택 (API 호출 제한)
+            Collections.shuffle(regionNames);
+            List<String> selectedRegions = regionNames.subList(0, Math.min(10, regionNames.size()));
+
+            logger.info("📍 정부 API에서 {}개 지역 정보 가져옴, {}개 선택", regionNames.size(), selectedRegions.size());
+
+            // 2. 각 지역별로 다양한 검색 쿼리 실행
+            List<String> searchQueries = Arrays.asList("카페", "맛집", "병원", "학원", "마트", "편의점", "약국");
+
+            for (String regionName : selectedRegions) {
+                // 지역별로 무작위 쿼리 선택
+                Collections.shuffle(searchQueries);
+                String selectedQuery = searchQueries.get(0);
+
+                try {
+                    String searchTerm = regionName + " " + selectedQuery;
+                    logger.info("🔍 지역별 검색: {}", searchTerm);
+
+                    List<Place> places = fetchNaverPlaces(searchTerm, 5); // 고속 모드: 더 많은 결과
+                    for (Place place : places) {
+                        // 슈퍼, 약국, 마트 필터링 체크
+                        if (shouldFilterOutPlace(place)) {
+                            logger.debug("🚫 필터링된 장소 스킵: {} (카테고리: {})", place.getName(), place.getCategory());
+                            continue;
+                        }
+
+                        // 중복 체크 (이름으로만 - 간단하게)
+                        Optional<Place> existingPlace = placeRepository.findByName(place.getName());
+
+                        if (existingPlace.isEmpty()) {
+                            // Google API로 평점 및 상세 정보 보강
+                            enhanceWithGooglePlaces(place);
+                            placeRepository.save(place);
+
+                            // 기본 이미지 생성 및 저장
+                            createDefaultImageForPlace(place);
+
+                            totalCollected++;
+                            logger.info("✅ 새 장소 저장 (기본 이미지 포함): {} (지역: {})", place.getName(), regionName);
+                        } else {
+                            logger.debug("⚠️ 중복 장소 스킵: {}", place.getName());
+                        }
+                    }
+
+                    // API 호출 간격 (고속 수집 모드 - 간격 단축)
+                    Thread.sleep(500);
+
+                } catch (Exception e) {
+                    logger.error("❌ 지역 '{}' 검색 중 오류: {}", regionName, e.getMessage());
+                }
+
+                // Naver API 기준 상위 100건 수집 (고속 모드)
+                if (totalCollected >= 100) {
+                    logger.info("⏸️ Naver API 상위 100건 수집 완료, 다음 배치에서 계속");
+                    break;
+                }
+            }
+
+        } catch (Exception e) {
+            logger.error("❌ 정부 API 기반 데이터 수집 중 전체 오류", e);
+            // Fallback: 기본 쿼리로 수집
+            totalCollected = collectFallbackData();
+        }
+
+        logger.info("🎉 정부 API 기반 실제 장소 데이터 수집 완료: {}개 장소", totalCollected);
+        return totalCollected;
+    }
+
+    /**
+     * 정부 API 실패시 사용할 Fallback 데이터 수집
+     */
+    private int collectFallbackData() {
+        logger.info("🔄 Fallback 모드: 기본 쿼리로 데이터 수집");
+        int collected = 0;
+
+        List<String> basicQueries = Arrays.asList("카페", "맛집", "병원", "편의점", "학원");
+        Collections.shuffle(basicQueries);
+
+        for (String query : basicQueries.subList(0, 3)) {
             try {
-                List<Place> places = fetchNaverPlaces(query, 3);
+                List<Place> places = fetchNaverPlaces(query, 5); // 고속 모드: 더 많은 결과
                 for (Place place : places) {
-                    // 중복 체크 (이름으로만 - 간단하게)
+                    // 슈퍼, 약국, 마트 필터링 체크
+                    if (shouldFilterOutPlace(place)) {
+                        logger.debug("🚫 Fallback 필터링된 장소 스킵: {} (카테고리: {})", place.getName(), place.getCategory());
+                        continue;
+                    }
+
                     Optional<Place> existingPlace = placeRepository.findByName(place.getName());
                     if (existingPlace.isEmpty()) {
-                        // Google API로 평점 보강
                         enhanceWithGooglePlaces(place);
                         placeRepository.save(place);
-                        totalCollected++;
-                        logger.info("Saved new place: {}", place.getName());
-                    } else {
-                        logger.info("Place already exists, skipping: {}", place.getName());
+
+                        // 기본 이미지 생성 및 저장
+                        createDefaultImageForPlace(place);
+
+                        collected++;
+                        logger.info("Fallback 저장 (기본 이미지 포함): {}", place.getName());
                     }
                 }
-                Thread.sleep(2000); // API 호출 간격
+                Thread.sleep(500); // 고속 수집 모드
             } catch (Exception e) {
-                logger.error("Error collecting data for query: {}", query, e);
+                logger.error("Fallback 수집 오류 for '{}': {}", query, e.getMessage());
             }
         }
 
-        logger.info("Real place data collection completed: {} places", totalCollected);
-        return totalCollected;
+        return collected;
     }
 
     /**
@@ -1058,33 +1183,8 @@ public class BatchService {
      * 모든 장소에 대한 AI 이미지 생성 (공개 메소드로 변경)
      */
     public int generateAiImagesForPlaces() {
-        logger.info("Starting AI image generation for all places");
-
-        List<Place> places = placeRepository.findAll();
-        int generatedCount = 0;
-
-        for (Place place : places) {
-            try {
-                // 이미 AI 이미지가 있는지 확인
-                boolean hasAiImage = placeImageRepository.existsByPlaceIdAndIsAiGeneratedTrue(place.getId());
-                if (hasAiImage) {
-                    logger.info("Place {} already has AI image, skipping", place.getName());
-                    continue;
-                }
-
-                // 이미지 생성 로직 비활성화 - 나중에 배치로 처리 예정
-                logger.info("⏸️  Skipping image generation for place: {} (will be processed later in batch)", place.getName());
-                // TODO: 나중에 배치 이미지 업데이트에서 처리됩니다
-
-                Thread.sleep(3000); // API 호출 간격
-
-            } catch (Exception e) {
-                logger.error("Error generating AI image for place: {}", place.getName(), e);
-            }
-        }
-
-        logger.info("AI image generation completed: {} images generated", generatedCount);
-        return generatedCount;
+        logger.info("이미지 생성 건너뛰기 - Default Path만 사용");
+        return 0;
     }
 
     /**
@@ -1103,7 +1203,7 @@ public class BatchService {
 
         try {
             // 이미 AI 이미지가 있는지 확인
-            boolean hasAiImage = placeImageRepository.existsByPlaceIdAndIsAiGenerated(placeId, true);
+            boolean hasAiImage = placeImageRepository.existsByPlaceIdAndIsAiGeneratedTrue(placeId);
             if (hasAiImage) {
                 logger.info("Place {} already has AI image, skipping", place.getName());
                 return 0;
@@ -1121,47 +1221,137 @@ public class BatchService {
     }
 
     /**
-     * 배치로 이미지를 일괄 업데이트하는 메서드 (나중에 사용 예정)
-     * DB를 돌면서 이미지가 없는 장소들에 대해 이미지를 생성/업데이트
+     * PENDING 상태인 이미지들을 실제 이미지로 업데이트하는 메서드
+     * Placeholder에서 실제 이미지로 변환
      */
     public int batchUpdatePlaceImages() {
-        logger.info("🖼️  Starting batch image update for places without images");
+        logger.info("🖼️  Starting batch image update for PENDING placeholders");
 
-        List<Place> placesWithoutImages = placeRepository.findPlacesWithoutImages();
-        logger.info("Found {} places without images", placesWithoutImages.size());
+        // PENDING 상태인 PlaceImage들 조회
+        List<PlaceImage> pendingImages = placeImageRepository.findBySource(ImageSource.PENDING);
+        logger.info("Found {} pending placeholder images to update", pendingImages.size());
 
         int updatedCount = 0;
 
-        for (Place place : placesWithoutImages) {
+        for (PlaceImage pendingImage : pendingImages) {
             try {
-                logger.info("🎯 Processing place for image update: {} (Rating: {})",
+                Place place = pendingImage.getPlace();
+                logger.info("🎯 Processing pending image for place: {} (Rating: {})",
                     place.getName(), place.getRating());
 
                 // 평점 기반 이미지 생성 (3.0 이상만 AI, 나머지는 Default)
-                PlaceImage placeImage = imageGenerationService.generateKoreanPlaceImage(place);
+                PlaceImage newImage = imageGenerationService.generateKoreanPlaceImage(place);
 
-                if (placeImage != null) {
-                    placeImageRepository.save(placeImage);
+                if (newImage != null) {
+                    // 기존 placeholder 레코드를 업데이트
+                    updatePlaceholderWithRealImage(pendingImage, newImage);
+                    placeImageRepository.save(pendingImage);
                     updatedCount++;
 
-                    String imageType = placeImage.getIsAiGenerated() ? "AI" : "Default";
-                    logger.info("✅ Updated place with {} image: {}", imageType, place.getName());
+                    String imageType = pendingImage.getIsAiGenerated() ? "AI" : "Default";
+                    logger.info("✅ Updated placeholder with {} image: {}", imageType, place.getName());
                 } else {
                     logger.warn("❌ Failed to generate image for place: {}", place.getName());
                 }
 
                 // API 호출 간격 (AI 이미지 생성시에만)
-                if (place.getRating() != null && place.getRating() >= 3.0) {
+                if (place.getRating() != null && place.getRating().compareTo(java.math.BigDecimal.valueOf(3.0)) >= 0) {
                     Thread.sleep(3000);
                 }
 
             } catch (Exception e) {
-                logger.error("Error updating image for place: {}", place.getName(), e);
+                logger.error("Error updating pending image: {}", e.getMessage(), e);
             }
         }
 
-        logger.info("🎉 Batch image update completed: {} places updated", updatedCount);
+        logger.info("🎉 Batch image update completed: {} placeholders updated", updatedCount);
         return updatedCount;
+    }
+
+    /**
+     * Placeholder 이미지를 실제 이미지 정보로 업데이트
+     */
+    private void updatePlaceholderWithRealImage(PlaceImage placeholder, PlaceImage newImage) {
+        placeholder.setImageUrl(newImage.getImageUrl());
+        placeholder.setImagePath(newImage.getImagePath());
+        placeholder.setSource(newImage.getSource());
+        placeholder.setIsAiGenerated(newImage.getIsAiGenerated());
+        placeholder.setAiModel(newImage.getAiModel());
+        placeholder.setPromptUsed(newImage.getPromptUsed());
+        placeholder.setIsVerified(newImage.getIsVerified());
+        placeholder.setUpdatedAt(OffsetDateTime.now());
+    }
+
+    /**
+     * 모든 장소에 대해 Placeholder 이미지 레코드를 생성하는 Job
+     * Option 2: NULL 이미지 레코드 생성 방식
+     */
+    public int createPlaceholderImages() {
+        logger.info("🔄 Starting placeholder image creation job");
+
+        // 이미지가 없는 장소들 조회
+        List<Place> placesWithoutImages = placeRepository.findPlacesWithoutImages();
+        logger.info("Found {} places without images for placeholder creation", placesWithoutImages.size());
+
+        int createdCount = 0;
+
+        for (Place place : placesWithoutImages) {
+            try {
+                // Placeholder 이미지 레코드 생성
+                PlaceImage placeholder = createPlaceholderImage(place);
+
+                if (placeholder != null) {
+                    placeImageRepository.save(placeholder);
+                    createdCount++;
+
+                    logger.info("📝 Created placeholder image for place: {} (Rating: {})",
+                        place.getName(), place.getRating());
+                } else {
+                    logger.warn("❌ Failed to create placeholder for place: {}", place.getName());
+                }
+
+            } catch (Exception e) {
+                logger.error("Error creating placeholder image for place: {}", place.getName(), e);
+            }
+        }
+
+        logger.info("🎉 Placeholder image creation completed: {} placeholders created", createdCount);
+        return createdCount;
+    }
+
+    /**
+     * Placeholder 이미지 레코드 생성 헬퍼 메서드 (NULL 값 제거)
+     */
+    private PlaceImage createPlaceholderImage(Place place) {
+        try {
+            PlaceImage placeholder = new PlaceImage();
+            placeholder.setPlace(place);
+
+            // 기본 이미지 URL을 임시로 설정 (NULL 대신)
+            String category = place.getCategory() != null ? place.getCategory() : "default";
+            String tempDefaultImagePath = imageGenerationService.getDefaultImagePath(category);
+
+            placeholder.setImageUrl(tempDefaultImagePath);   // NULL 대신 기본 이미지
+            placeholder.setImagePath(tempDefaultImagePath);  // NULL 대신 기본 이미지
+
+            // Placeholder 상태로 설정
+            placeholder.setSource(ImageSource.PENDING);
+            placeholder.setIsAiGenerated(false); // 기본값으로 false 설정 (NULL 대신)
+            placeholder.setAiModel("pending");   // NULL 대신 "pending"
+            placeholder.setPromptUsed("Pending batch image generation - will be updated based on rating");
+            placeholder.setIsPrimary(true);
+            placeholder.setIsVerified(false);
+
+            // 메타데이터
+            placeholder.setCreatedAt(OffsetDateTime.now());
+            placeholder.setUpdatedAt(OffsetDateTime.now());
+
+            return placeholder;
+
+        } catch (Exception e) {
+            logger.error("Error creating placeholder image object for place: {}", place.getName(), e);
+            return null;
+        }
     }
 
     public Object triggerBatchJob(String jobName, Map<String, Object> parameters) {
@@ -1172,6 +1362,8 @@ public class BatchService {
                 return Map.of("result", collectRealPlaceData());
             case "generate-images":
                 return Map.of("result", generateAiImagesForPlaces());
+            case "create-placeholder-images":
+                return Map.of("result", createPlaceholderImages());
             case "batch-update-images":
                 return Map.of("result", batchUpdatePlaceImages());
             case "full-batch":
@@ -1237,5 +1429,87 @@ public class BatchService {
             0, // removedCount
             List.of("Database cleanup not yet implemented") // messages
         );
+    }
+
+    /**
+     * 슈퍼, 약국, 마트 데이터 필터링 여부 확인
+     */
+    private boolean shouldFilterOutPlace(Place place) {
+        if (place == null) {
+            return true;
+        }
+
+        String name = place.getName() != null ? place.getName().toLowerCase() : "";
+        String category = place.getCategory() != null ? place.getCategory().toLowerCase() : "";
+
+        // 이름에 포함된 필터링 키워드 체크
+        String[] nameFilters = {
+            "슈퍼", "super", "수퍼", "마트", "mart", "약국", "pharmacy",
+            "편의점", "convenience", "cvs", "7-eleven", "세븐일레븐", "gs25", "cu",
+            "이마트", "emart", "롯데마트", "홈플러스", "코스트코"
+        };
+
+        for (String filter : nameFilters) {
+            if (name.contains(filter)) {
+                return true;
+            }
+        }
+
+        // 카테고리에 포함된 필터링 키워드 체크
+        String[] categoryFilters = {
+            "슈퍼마켓", "편의점", "약국", "마트", "대형마트", "할인점",
+            "supermarket", "convenience store", "pharmacy", "drugstore"
+        };
+
+        for (String filter : categoryFilters) {
+            if (category.contains(filter)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * 새로 저장된 장소에 대한 기본 이미지 생성 및 저장 (기존 ImageGenerationService 사용)
+     */
+    private void createDefaultImageForPlace(Place place) {
+        try {
+            // 기존 ImageGenerationService를 통해 기본 이미지 생성 (AI 생성 없이)
+            PlaceImage defaultImage = imageGenerationService.generateKoreanPlaceImage(place);
+
+            if (defaultImage != null) {
+                placeImageRepository.save(defaultImage);
+                logger.info("✅ 기본 이미지 생성 완료: {} (URL: {})", place.getName(), defaultImage.getImageUrl());
+            } else {
+                logger.warn("❌ ImageGenerationService에서 기본 이미지 생성 실패: {}", place.getName());
+            }
+        } catch (Exception e) {
+            logger.error("❌ 기본 이미지 생성 실패: {} - 오류: {}", place.getName(), e.getMessage());
+        }
+    }
+
+    /**
+     * 지역 정보를 담는 내부 클래스
+     */
+    private static class LocationInfo {
+        private final String name;
+        private final double latitude;
+        private final double longitude;
+
+        public LocationInfo(String name, double latitude, double longitude) {
+            this.name = name;
+            this.latitude = latitude;
+            this.longitude = longitude;
+        }
+
+        public String getName() { return name; }
+        public double getLatitude() { return latitude; }
+        public double getLongitude() { return longitude; }
+
+        @Override
+        public String toString() {
+            return String.format("%s (%.4f, %.4f)", name, latitude, longitude);
+        }
     }
 }

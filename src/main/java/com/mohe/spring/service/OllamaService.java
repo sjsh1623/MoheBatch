@@ -2,6 +2,7 @@ package com.mohe.spring.service;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mohe.spring.config.LlmProperties;
 import org.slf4j.Logger;
@@ -11,9 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.client.ResourceAccessException;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -32,16 +31,104 @@ public class OllamaService implements LlmService {
         this.llmProperties = llmProperties;
     }
     
-    @Override
+    /**
+     * 텍스트 벡터화 전용 메소드 (mxbai-embed-large 모델 사용)
+     */
+    public double[] generateEmbedding(String text) {
+        try {
+            logger.info("Ollama 벡터화 요청: 텍스트 길이 {}", text.length());
+
+            String embeddingResponse = callOllamaEmbedding(text);
+            return parseEmbeddingResponse(embeddingResponse);
+
+        } catch (Exception e) {
+            logger.error("❌ Ollama 벡터화 실패: {}", e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * 키워드 벡터화
+     */
+    public double[] generateKeywordEmbedding(List<String> keywords) {
+        try {
+            String keywordText = String.join(" ", keywords);
+            return generateEmbedding(keywordText);
+
+        } catch (Exception e) {
+            logger.error("❌ Ollama 키워드 벡터화 실패: {}", e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * Ollama Embedding API 호출
+     */
+    private String callOllamaEmbedding(String text) {
+        try {
+            String url = llmProperties.getOllama().getBaseUrl() + "/api/embeddings";
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("model", "mxbai-embed-large"); // 사용자 요구사항의 모델
+            requestBody.put("prompt", text);
+
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+
+            ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
+
+            if (response.getStatusCode().is2xxSuccessful()) {
+                return response.getBody();
+            } else {
+                throw new RuntimeException("Ollama API 호출 실패: " + response.getStatusCode());
+            }
+
+        } catch (ResourceAccessException e) {
+            logger.error("❌ Ollama 서버 연결 실패. Ollama가 {}에서 실행 중인지 확인하세요",
+                        llmProperties.getOllama().getBaseUrl());
+            throw new RuntimeException("Ollama 서버 연결 실패", e);
+        } catch (Exception e) {
+            logger.error("❌ Ollama Embedding API 호출 중 오류", e);
+            throw new RuntimeException("Ollama Embedding API 호출 실패", e);
+        }
+    }
+
+    /**
+     * Embedding 응답 파싱
+     */
+    private double[] parseEmbeddingResponse(String response) {
+        try {
+            JsonNode jsonNode = objectMapper.readTree(response);
+            JsonNode embeddingNode = jsonNode.get("embedding");
+
+            if (embeddingNode != null && embeddingNode.isArray()) {
+                double[] embedding = new double[embeddingNode.size()];
+                for (int i = 0; i < embeddingNode.size(); i++) {
+                    embedding[i] = embeddingNode.get(i).asDouble();
+                }
+                logger.info("✅ 벡터 생성 완료: 차원 {}", embedding.length);
+                return embedding;
+            } else {
+                throw new RuntimeException("잘못된 embedding 응답 형식");
+            }
+
+        } catch (Exception e) {
+            logger.error("❌ Embedding 응답 파싱 실패", e);
+            throw new RuntimeException("Embedding 응답 파싱 실패", e);
+        }
+    }
+
     public OllamaRecommendationResponse generatePlaceRecommendations(String prompt, List<String> availablePlaces) {
         try {
             logger.info("Sending recommendation request to Ollama with prompt length: {}", prompt.length());
-            
+
             String response = callOllamaGenerate(prompt);
             logger.info("Received response from Ollama, length: {}", response.length());
-            
+
             return parseRecommendationResponse(response, availablePlaces);
-            
+
         } catch (Exception e) {
             logger.error("Failed to generate recommendations using Ollama: {}", e.getMessage(), e);
             return createFallbackResponse(availablePlaces);
