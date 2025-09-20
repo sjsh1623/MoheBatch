@@ -124,9 +124,128 @@ public class GooglePlaceDetail {
         public void setTime(Long time) { this.time = time; }
     }
 
+    // Builder pattern
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    // Helper methods for compatibility
+    public double getLatitude() { return 0.0; } // Will be set by Google API geometry
+    public double getLongitude() { return 0.0; } // Will be set by Google API geometry
+    public String getAddress() { return formattedAddress; }
+    public String getPhoneNumber() { return formattedPhoneNumber; }
+    public List<String> getPhotoReferences() { return List.of(); } // Will be implemented if needed
+    public String getOpeningHoursText() {
+        if (openingHours != null && openingHours.getWeekdayText() != null) {
+            return String.join("; ", openingHours.getWeekdayText());
+        }
+        return "";
+    }
+
     @Override
     public String toString() {
         return String.format("GooglePlaceDetail{placeId='%s', name='%s', rating=%s}",
                            placeId, name, rating);
+    }
+
+    // Builder class
+    public static class Builder {
+        private String placeId;
+        private String name;
+        private String formattedAddress;
+        private String formattedPhoneNumber;
+        private String website;
+        private Double rating;
+        private Integer userRatingsTotal;
+        private Integer priceLevel;
+        private List<String> types;
+        private OpeningHours openingHours;
+        private List<Review> reviews;
+
+        public Builder placeId(String placeId) {
+            this.placeId = placeId;
+            return this;
+        }
+
+        public Builder name(String name) {
+            this.name = name;
+            return this;
+        }
+
+        public Builder address(String address) {
+            this.formattedAddress = address;
+            return this;
+        }
+
+        public Builder latitude(double latitude) {
+            // For compatibility, but not stored in this DTO
+            return this;
+        }
+
+        public Builder longitude(double longitude) {
+            // For compatibility, but not stored in this DTO
+            return this;
+        }
+
+        public Builder rating(double rating) {
+            this.rating = rating;
+            return this;
+        }
+
+        public Builder userRatingsTotal(int userRatingsTotal) {
+            this.userRatingsTotal = userRatingsTotal;
+            return this;
+        }
+
+        public Builder priceLevel(int priceLevel) {
+            this.priceLevel = priceLevel;
+            return this;
+        }
+
+        public Builder types(List<String> types) {
+            this.types = types;
+            return this;
+        }
+
+        public Builder phoneNumber(String phoneNumber) {
+            this.formattedPhoneNumber = phoneNumber;
+            return this;
+        }
+
+        public Builder website(String website) {
+            this.website = website;
+            return this;
+        }
+
+        public Builder photoReferences(List<String> photoReferences) {
+            // For compatibility, but not stored in this DTO
+            return this;
+        }
+
+        public Builder openingHours(String openingHours) {
+            // For compatibility, but not stored in this DTO
+            return this;
+        }
+
+        public Builder reviews(List<String> reviews) {
+            // For compatibility, but not stored in this DTO
+            return this;
+        }
+
+        public GooglePlaceDetail build() {
+            GooglePlaceDetail detail = new GooglePlaceDetail();
+            detail.setPlaceId(this.placeId);
+            detail.setName(this.name);
+            detail.setFormattedAddress(this.formattedAddress);
+            detail.setFormattedPhoneNumber(this.formattedPhoneNumber);
+            detail.setWebsite(this.website);
+            detail.setRating(this.rating);
+            detail.setUserRatingsTotal(this.userRatingsTotal);
+            detail.setPriceLevel(this.priceLevel);
+            detail.setTypes(this.types);
+            detail.setOpeningHours(this.openingHours);
+            detail.setReviews(this.reviews);
+            return detail;
+        }
     }
 }

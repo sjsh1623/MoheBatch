@@ -74,8 +74,7 @@ public class SimplifiedBatchConfiguration {
                                    duration, jobExecution.getStatus());
                     }
                 })
-                .start(databaseInitializationStep)
-                .next(placeEnrichmentStep)
+                .start(placeEnrichmentStep)
                 .build();
     }
 

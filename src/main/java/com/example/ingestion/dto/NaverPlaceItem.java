@@ -92,9 +92,86 @@ public class NaverPlaceItem {
     public String getMapy() { return mapy; }
     public void setMapy(String mapy) { this.mapy = mapy; }
 
+    // Builder pattern
+    public static Builder builder() {
+        return new Builder();
+    }
+
     @Override
     public String toString() {
         return String.format("NaverPlaceItem{title='%s', category='%s', address='%s'}",
                            getCleanTitle(), category, address);
+    }
+
+    // Builder class
+    public static class Builder {
+        private String title;
+        private String link;
+        private String category;
+        private String description;
+        private String telephone;
+        private String address;
+        private String roadAddress;
+        private String mapx;
+        private String mapy;
+
+        public Builder title(String title) {
+            this.title = title;
+            return this;
+        }
+
+        public Builder link(String link) {
+            this.link = link;
+            return this;
+        }
+
+        public Builder category(String category) {
+            this.category = category;
+            return this;
+        }
+
+        public Builder description(String description) {
+            this.description = description;
+            return this;
+        }
+
+        public Builder telephone(String telephone) {
+            this.telephone = telephone;
+            return this;
+        }
+
+        public Builder address(String address) {
+            this.address = address;
+            return this;
+        }
+
+        public Builder roadAddress(String roadAddress) {
+            this.roadAddress = roadAddress;
+            return this;
+        }
+
+        public Builder latitude(double latitude) {
+            this.mapy = String.valueOf((long)(latitude * 10000000.0));
+            return this;
+        }
+
+        public Builder longitude(double longitude) {
+            this.mapx = String.valueOf((long)(longitude * 10000000.0));
+            return this;
+        }
+
+        public NaverPlaceItem build() {
+            NaverPlaceItem item = new NaverPlaceItem();
+            item.setTitle(this.title);
+            item.setLink(this.link);
+            item.setCategory(this.category);
+            item.setDescription(this.description);
+            item.setTelephone(this.telephone);
+            item.setAddress(this.address);
+            item.setRoadAddress(this.roadAddress);
+            item.setMapx(this.mapx);
+            item.setMapy(this.mapy);
+            return item;
+        }
     }
 }

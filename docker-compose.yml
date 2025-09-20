@@ -68,8 +68,8 @@ services:
       # Logging
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     ports:
-      - "8081:8080"
-      - "${WEB_MANAGEMENT_PORT:-8081}:8081"
+      - "8085:8080"
+      - "${WEB_MANAGEMENT_PORT:-8086}:8081"
     networks:
       - mohe-batch-network
       - mohe_mohe-network  # Connect to main MoheSpring network
@@ -92,7 +92,7 @@ services:
       DATABASE_URL: jdbc:postgresql://mohe-postgres:5432/${POSTGRES_DB:-mohe_db}
       DATABASE_USERNAME: ${POSTGRES_USER:-mohe_user}
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-mohe_password}
-      
+
       # External API configuration - Real APIs
       EXTERNAL_API_BASE_URL: https://openapi.naver.com
       NAVER_CLIENT_ID: ${NAVER_CLIENT_ID}
@@ -101,16 +101,16 @@ services:
       EXTERNAL_API_PAGE_SIZE: ${API_PAGE_SIZE:-100}
       EXTERNAL_API_MAX_PAGES: ${API_MAX_PAGES:-10}
       EXTERNAL_API_TIMEOUT: ${API_TIMEOUT:-30}
-      
+
       # Batch configuration
       BATCH_CHUNK_SIZE: ${BATCH_CHUNK_SIZE:-500}
       BATCH_SKIP_LIMIT: ${BATCH_SKIP_LIMIT:-100}
       BATCH_AUTO_START: ${BATCH_AUTO_START:-false}  # Can enable for auto-start
-      
+
       # Scheduling configuration
       APP_BATCH_SCHEDULING_ENABLED: ${BATCH_SCHEDULING_ENABLED:-true}
       APP_BATCH_SCHEDULING_CRON: ${BATCH_CRON:-0 */30 * * * ?}  # Every 30 minutes by default
-      
+
       # JVM configuration for batch processing
       JAVA_OPTS: >
         -XX:+UseContainerSupport
@@ -119,11 +119,11 @@ services:
         -XX:+UseStringDeduplication
         -Xms512m
         -Xmx1024m
-        
+
       # Spring profile
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker},batch
       ENVIRONMENT: ${ENVIRONMENT:-docker}
-      
+
       # Logging
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     ports:
@@ -139,6 +139,81 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+
+  # Pure Batch Service (requirement: "배치 실행은 docker-compose로 다음과 같이: docker-compose up -d batch")
+  batch:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mohe-batch
+    environment:
+      # Database configuration (connect to main MoheSpring database)
+      DATABASE_URL: jdbc:postgresql://localhost:5432/${POSTGRES_DB:-mohe_db}
+      DATABASE_USERNAME: ${POSTGRES_USER:-mohe_user}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-mohe_password}
+
+      # PostgreSQL connection details for .env compatibility
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-mohe_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mohe_password}
+      POSTGRES_DB: ${POSTGRES_DB:-mohe_db}
+
+      # External API configuration - Load from .env
+      APP_EXTERNAL_GOVERNMENT_SERVICE_KEY: ${APP_EXTERNAL_GOVERNMENT_SERVICE_KEY}
+      GOVT_API_KEY: ${APP_EXTERNAL_GOVERNMENT_SERVICE_KEY}
+      NAVER_CLIENT_ID: ${NAVER_CLIENT_ID}
+      NAVER_CLIENT_SECRET: ${NAVER_CLIENT_SECRET}
+      NAVER_API_KEY: ${NAVER_CLIENT_ID}
+      GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY:-your_real_google_api_key_here}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-your_openai_api_key_here}
+
+      # Ollama configuration
+      OLLAMA_HOST: http://host.docker.internal:11434
+      OLLAMA_URL: http://host.docker.internal:11434
+
+      # Batch configuration for infinite loop processing
+      BATCH_AUTO_START: true  # Automatically start batch on container startup
+      BATCH_CHUNK_SIZE: ${BATCH_CHUNK_SIZE:-10}
+      NAVER_PAGE_SIZE: ${NAVER_PAGE_SIZE:-5}
+      NAVER_MAX_PAGES: ${NAVER_MAX_PAGES:-20}
+
+      # Continuous processing configuration
+      APP_BATCH_CONTINUOUS_ENABLED: true  # Enable infinite loop batch
+      APP_BATCH_AUTO_INITIALIZATION: false  # Don't clear DB - keep existing data
+      BATCH_AUTO_INITIALIZATION: false  # Additional flag to disable DB clearing
+
+      # Checkpoint system configuration
+      CHECKPOINT_ENABLED: false  # Disable checkpoint for now to focus on continuous collection
+      CHECKPOINT_BATCH_NAME: place-ingestion-batch
+      CHECKPOINT_REGION_TYPE: sigungu
+      CHECKPOINT_AUTO_RESUME: false  # Disable auto-resume
+
+      # JVM configuration simplified
+      JAVA_OPTS: >
+        -XX:+UseContainerSupport
+        -XX:MaxRAMPercentage=70.0
+        -XX:+UseG1GC
+        -Xms256m
+        -Xmx512m
+
+      # Spring profile for batch-only execution
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker},batch,continuous
+      ENVIRONMENT: ${ENVIRONMENT:-docker}
+
+      # Logging configuration
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOGGING_LEVEL_ROOT: INFO
+      LOGGING_LEVEL_COM_EXAMPLE_INGESTION: DEBUG
+    network_mode: host  # Use host network to access main database
+    restart: unless-stopped
+# No dependencies needed with host network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 120s
 
   # Prometheus for metrics (optional)
   prometheus:

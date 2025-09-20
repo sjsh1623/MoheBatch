@@ -1,6 +1,7 @@
 package com.example.ingestion.dto;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,12 +38,12 @@ public class ProcessedPlaceJava {
 
     public ProcessedPlaceJava() {
         this.sourceFlags = new HashMap<>();
-        this.gallery = List.of();
-        this.keywordVector = List.of();
-        this.types = List.of();
-        this.tags = List.of();
-        this.amenities = List.of();
-        this.images = List.of();
+        this.gallery = new ArrayList<>();
+        this.keywordVector = new ArrayList<>();
+        this.types = new ArrayList<>();
+        this.tags = new ArrayList<>();
+        this.amenities = new ArrayList<>();
+        this.images = new ArrayList<>();
         this.reviewCount = 0;
     }
 

@@ -79,10 +79,10 @@ public class DatabasePlaceWriter implements ItemWriter<ProcessedPlaceJava> {
             INSERT INTO places (
                 name, description, latitude, longitude, category, rating,
                 address, road_address, phone, naver_place_id, google_place_id,
-                opening_hours, tags, amenities, images, gallery,
+                opening_hours, tags, amenities, gallery,
                 review_count, user_ratings_total, price_level,
                 source_flags, keyword_vector, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """;
 
         Timestamp now = Timestamp.from(Instant.now());
@@ -103,7 +103,6 @@ public class DatabasePlaceWriter implements ItemWriter<ProcessedPlaceJava> {
             place.getTags() != null ? place.getTags().toArray(new String[0]) : new String[0],
             place.getAmenities() != null ? place.getAmenities().toArray(new String[0]) : new String[0],
             place.getImages() != null ? place.getImages().toArray(new String[0]) : new String[0],
-            place.getGallery() != null ? place.getGallery().toArray(new String[0]) : new String[0],
             place.getReviewCount(),
             place.getUserRatingsTotal(),
             place.getPriceLevel(),
@@ -114,6 +113,9 @@ public class DatabasePlaceWriter implements ItemWriter<ProcessedPlaceJava> {
         );
 
         logger.debug("  ✅ Inserted place: {} (ID: {})", place.getName(), place.getNaverPlaceId());
+
+        // Insert images into place_images table
+        insertPlaceImages(place);
     }
 
     private void updateExistingPlace(ProcessedPlaceJava place) {
@@ -122,7 +124,7 @@ public class DatabasePlaceWriter implements ItemWriter<ProcessedPlaceJava> {
                 name = ?, description = ?, latitude = ?, longitude = ?, category = ?,
                 rating = ?, address = ?, road_address = ?, phone = ?,
                 google_place_id = ?, opening_hours = ?::jsonb, tags = ?, amenities = ?,
-                images = ?, gallery = ?, review_count = ?, user_ratings_total = ?,
+                gallery = ?, review_count = ?, user_ratings_total = ?,
                 price_level = ?, source_flags = ?, keyword_vector = ?, updated_at = ?
             WHERE naver_place_id = ?
         """;
@@ -143,8 +145,7 @@ public class DatabasePlaceWriter implements ItemWriter<ProcessedPlaceJava> {
             place.getOpeningHours() != null ? place.getOpeningHours().toString() : "{}",
             place.getTags() != null ? place.getTags().toArray(new String[0]) : new String[0],
             place.getAmenities() != null ? place.getAmenities().toArray(new String[0]) : new String[0],
-            place.getImages() != null ? place.getImages().toArray(new String[0]) : new String[0],
-            place.getGallery() != null ? place.getGallery().toArray(new String[0]) : new String[0],
+            place.getImages() != null ? place.getImages().toArray(new String[0]) : new String[0], // gallery field
             place.getReviewCount(),
             place.getUserRatingsTotal(),
             place.getPriceLevel(),
@@ -155,6 +156,118 @@ public class DatabasePlaceWriter implements ItemWriter<ProcessedPlaceJava> {
         );
 
         logger.debug("  🔄 Updated place: {} (ID: {})", place.getName(), place.getNaverPlaceId());
+
+        // Update images in place_images table
+        updatePlaceImages(place);
+    }
+
+    /**
+     * Insert images into place_images table
+     */
+    private void insertPlaceImages(ProcessedPlaceJava place) {
+        if (place.getImages() == null || place.getImages().isEmpty()) {
+            return;
+        }
+
+        try {
+            // Get place ID by naver_place_id
+            String getPlaceIdSql = "SELECT id FROM places WHERE naver_place_id = ?";
+            Long placeId = jdbcTemplate.queryForObject(getPlaceIdSql, Long.class, place.getNaverPlaceId());
+
+            if (placeId == null) {
+                logger.warn("⚠️ Place ID not found for naver_place_id: {}", place.getNaverPlaceId());
+                return;
+            }
+
+            String insertImageSql = """
+                INSERT INTO place_images (
+                    place_id, image_url, image_type, is_primary, display_order,
+                    source, is_verified, is_ai_generated, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """;
+
+            Timestamp now = Timestamp.from(Instant.now());
+            int displayOrder = 0;
+
+            for (String imageUrl : place.getImages()) {
+                jdbcTemplate.update(insertImageSql,
+                    placeId,
+                    imageUrl,
+                    "DEFAULT", // image_type
+                    displayOrder == 0, // is_primary (first image is primary)
+                    displayOrder,
+                    "CATEGORY_MAPPING", // source
+                    true, // is_verified
+                    false, // is_ai_generated
+                    now,
+                    now
+                );
+                displayOrder++;
+            }
+
+            logger.debug("  🖼️ Inserted {} images for place: {}", place.getImages().size(), place.getName());
+
+        } catch (Exception e) {
+            logger.error("❌ Failed to insert images for place: {} - {}", place.getName(), e.getMessage());
+        }
+    }
+
+    /**
+     * Update images in place_images table
+     */
+    private void updatePlaceImages(ProcessedPlaceJava place) {
+        if (place.getImages() == null) {
+            return;
+        }
+
+        try {
+            // Get place ID by naver_place_id
+            String getPlaceIdSql = "SELECT id FROM places WHERE naver_place_id = ?";
+            Long placeId = jdbcTemplate.queryForObject(getPlaceIdSql, Long.class, place.getNaverPlaceId());
+
+            if (placeId == null) {
+                logger.warn("⚠️ Place ID not found for naver_place_id: {}", place.getNaverPlaceId());
+                return;
+            }
+
+            // Delete existing images
+            String deleteSql = "DELETE FROM place_images WHERE place_id = ?";
+            jdbcTemplate.update(deleteSql, placeId);
+
+            // Insert new images if any
+            if (!place.getImages().isEmpty()) {
+                String insertImageSql = """
+                    INSERT INTO place_images (
+                        place_id, image_url, image_type, is_primary, display_order,
+                        source, is_verified, is_ai_generated, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """;
+
+                Timestamp now = Timestamp.from(Instant.now());
+                int displayOrder = 0;
+
+                for (String imageUrl : place.getImages()) {
+                    jdbcTemplate.update(insertImageSql,
+                        placeId,
+                        imageUrl,
+                        "DEFAULT", // image_type
+                        displayOrder == 0, // is_primary (first image is primary)
+                        displayOrder,
+                        "CATEGORY_MAPPING", // source
+                        true, // is_verified
+                        false, // is_ai_generated
+                        now,
+                        now
+                    );
+                    displayOrder++;
+                }
+
+                logger.debug("  🖼️ Updated {} images for place: {}", place.getImages().size(), place.getName());
+            }
+
+        } catch (Exception e) {
+            logger.error("❌ Failed to update images for place: {} - {}", place.getName(), e.getMessage());
+        }
     }
 
     /**

@@ -1,14 +1,18 @@
 package com.example.ingestion.batch.processor;
 
 import com.example.ingestion.batch.reader.EnrichedPlace;
+import com.example.ingestion.dto.NaverPlaceItem;
 import com.example.ingestion.dto.ProcessedPlaceJava;
 import com.example.ingestion.service.PlaceEnrichmentService;
 import com.example.ingestion.service.PlaceFilterService;
+import com.example.ingestion.service.ImageMappingService;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.item.ItemProcessor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -35,7 +39,11 @@ public class OptimizedPlaceEnrichmentProcessor implements ItemProcessor<Enriched
 
     private final PlaceEnrichmentService enrichmentService;
     private final PlaceFilterService filterService;
+    private final ImageMappingService imageMappingService;
     private final MeterRegistry meterRegistry;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     // Performance monitoring
     private final AtomicLong processedCount = new AtomicLong(0);
@@ -50,6 +58,7 @@ public class OptimizedPlaceEnrichmentProcessor implements ItemProcessor<Enriched
     public OptimizedPlaceEnrichmentProcessor(
             PlaceEnrichmentService enrichmentService,
             PlaceFilterService filterService,
+            ImageMappingService imageMappingService,
             MeterRegistry meterRegistry,
             @Value("${app.batch.max-retries:2}") int maxRetries,
             @Value("${app.batch.api-timeout:30s}") Duration apiTimeout,
@@ -57,6 +66,7 @@ public class OptimizedPlaceEnrichmentProcessor implements ItemProcessor<Enriched
     ) {
         this.enrichmentService = enrichmentService;
         this.filterService = filterService;
+        this.imageMappingService = imageMappingService;
         this.meterRegistry = meterRegistry;
         this.maxRetries = maxRetries;
         this.apiTimeout = apiTimeout;
@@ -72,6 +82,14 @@ public class OptimizedPlaceEnrichmentProcessor implements ItemProcessor<Enriched
             if (!isValidPlace(item)) {
                 meterRegistry.counter("place_processor_invalid_input").increment();
                 return null;
+            }
+
+            // Early return for duplicates - check if place already exists in database
+            String naverPlaceId = generatePlaceId(item.getNaverPlace());
+            if (isPlaceAlreadyProcessed(naverPlaceId)) {
+                logger.debug("🔄 Skipping duplicate place: {} (already exists in database)", item.getNaverPlace().getCleanTitle());
+                meterRegistry.counter("place_processor_duplicate_skipped").increment();
+                return null; // Skip expensive Google and OpenAI API calls
             }
 
             // Create basic processed place
@@ -163,31 +181,68 @@ public class OptimizedPlaceEnrichmentProcessor implements ItemProcessor<Enriched
                     // Use generated description if available, otherwise keep original
                     String finalDescription = !description.isEmpty() ? description : basicPlace.getDescription();
 
-                    // Generate embedding from final description
-                    String embeddingText = buildEmbeddingText(item, finalDescription);
-
-                    addRandomDelay(); // Rate limiting for embedding call
-
-                    return enrichmentService.generateEmbedding(embeddingText)
+                    // Extract keywords from the final description
+                    logger.info("🔍 Starting keyword extraction for place: {}", placeName);
+                    addRandomDelay(); // Rate limiting for keyword extraction
+                    Mono<List<String>> keywordsMono = enrichmentService.extractKeywords(finalDescription)
                             .subscribeOn(Schedulers.boundedElastic())
-                            .map(embedding -> {
-                                // Update processed place with enriched data
-                                ProcessedPlaceJava enriched = copyProcessedPlace(basicPlace);
-                                enriched.setDescription(finalDescription);
-                                enriched.setKeywordVector(embedding);
+                            .doOnNext(keywords -> logger.info("✅ Extracted {} keywords for {}: {}",
+                                    keywords.size(), placeName, String.join(", ", keywords)))
+                            .doOnError(error -> logger.error("❌ Keyword extraction failed for {}: {}", placeName, error.getMessage()))
+                            .onErrorReturn(java.util.Collections.emptyList());
 
-                                // Add source flags for tracking
-                                enriched.getSourceFlags().put("hasAiDescription", !description.isEmpty());
-                                enriched.getSourceFlags().put("hasImagePrompt", !imagePrompt.isEmpty());
-                                enriched.getSourceFlags().put("hasEmbedding", !embedding.isEmpty());
-                                enriched.getSourceFlags().put("processingTimestamp", System.currentTimeMillis());
+                    return keywordsMono.flatMap(keywords -> {
+                        // Generate embedding from final description + keywords
+                        String embeddingText = buildEmbeddingText(item, finalDescription, keywords);
 
-                                meterRegistry.counter("place_processor_enriched").increment();
-                                return enriched;
-                            })
-                            .onErrorReturn(basicPlace); // Return basic place if embedding fails
+                        addRandomDelay(); // Rate limiting for embedding call
+
+                        return enrichmentService.generateEmbedding(embeddingText)
+                                .subscribeOn(Schedulers.boundedElastic())
+                                .map(embedding -> {
+                                    // Update processed place with enriched data
+                                    ProcessedPlaceJava enriched = copyProcessedPlace(basicPlace);
+                                    enriched.setDescription(finalDescription);
+                                    enriched.setTags(keywords); // Set extracted keywords
+                                    enriched.setKeywordVector(embedding);
+
+                                    // Add source flags for tracking
+                                    enriched.getSourceFlags().put("hasAiDescription", !description.isEmpty());
+                                    enriched.getSourceFlags().put("hasImagePrompt", !imagePrompt.isEmpty());
+                                    enriched.getSourceFlags().put("hasKeywords", !keywords.isEmpty());
+                                    enriched.getSourceFlags().put("hasEmbedding", !embedding.isEmpty());
+                                    enriched.getSourceFlags().put("processingTimestamp", System.currentTimeMillis());
+
+                                    meterRegistry.counter("place_processor_enriched").increment();
+                                    return enriched;
+                                })
+                                .onErrorReturn(basicPlace); // Return basic place if embedding fails
+                    });
                 })
                 .doOnError(error -> logger.warn("Enrichment failed for {}: {}", placeName, error.getMessage()));
+    }
+
+    /**
+     * Generate a unique place ID from Naver place data
+     */
+    private String generatePlaceId(NaverPlaceItem naverPlace) {
+        String title = naverPlace.getCleanTitle();
+        String address = naverPlace.getAddress();
+        return title + "|" + (address != null ? address : "");
+    }
+
+    /**
+     * Check if place already exists in database to avoid duplicate processing
+     */
+    private boolean isPlaceAlreadyProcessed(String naverPlaceId) {
+        try {
+            String sql = "SELECT COUNT(*) FROM places WHERE naver_place_id = ?";
+            Integer count = jdbcTemplate.queryForObject(sql, Integer.class, naverPlaceId);
+            return count != null && count > 0;
+        } catch (Exception e) {
+            logger.warn("⚠️ Failed to check duplicate for place ID {}: {}", naverPlaceId, e.getMessage());
+            return false; // If check fails, continue processing to be safe
+        }
     }
 
     /**
@@ -245,9 +300,17 @@ public class OptimizedPlaceEnrichmentProcessor implements ItemProcessor<Enriched
         place.setDescription(item.getNaverPlace().getDescription() != null ?
                            item.getNaverPlace().getDescription() : "");
 
+        // Set default image based on category using ImageMappingService
+        String imagePath = imageMappingService.getImagePath(place.getCategory());
+        if (imagePath != null && !imagePath.isEmpty()) {
+            place.getImages().add(imagePath);
+            logger.debug("Mapped category '{}' to image: {}", place.getCategory(), imagePath);
+        }
+
         // Source flags for tracking
         place.getSourceFlags().put("hasNaverData", true);
         place.getSourceFlags().put("hasGoogleData", item.getGooglePlace() != null);
+        place.getSourceFlags().put("hasDefaultImage", !place.getImages().isEmpty());
 
         return place;
     }
@@ -313,6 +376,25 @@ public class OptimizedPlaceEnrichmentProcessor implements ItemProcessor<Enriched
     }
 
     /**
+     * Build embedding text including extracted keywords
+     */
+    private String buildEmbeddingText(EnrichedPlace item, String description, List<String> keywords) {
+        StringBuilder text = new StringBuilder();
+
+        text.append(item.getNaverPlace().getCleanTitle()).append(" ");
+        text.append(item.getNaverPlace().getCategory()).append(" ");
+        text.append(description).append(" ");
+        text.append(item.getNaverPlace().getAddress()).append(" ");
+
+        // Add keywords for better embedding
+        if (keywords != null && !keywords.isEmpty()) {
+            text.append("키워드: ").append(String.join(", ", keywords));
+        }
+
+        return text.toString().trim();
+    }
+
+    /**
      * Generate unique Naver place ID
      */
     private String generateNaverPlaceId(com.example.ingestion.dto.NaverPlaceItem naverPlace) {
@@ -354,6 +436,11 @@ public class OptimizedPlaceEnrichmentProcessor implements ItemProcessor<Enriched
         copy.setNaverRawData(original.getNaverRawData());
         copy.setGoogleRawData(original.getGoogleRawData());
         copy.setKeywordVector(original.getKeywordVector());
+
+        // Copy images
+        if (original.getImages() != null) {
+            copy.getImages().addAll(original.getImages());
+        }
 
         // Copy source flags
         if (original.getSourceFlags() != null) {

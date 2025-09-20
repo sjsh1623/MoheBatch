@@ -60,8 +60,8 @@ compileJava {
     options.encoding = 'UTF-8'
 }
 
-// Disable test tasks completely
-tasks.withType(Test) {
+// Test tasks disabled
+tasks.test {
     enabled = false
 }
 

@@ -48,7 +48,7 @@ spring:
   batch:
     job:
       enabled: ${BATCH_AUTO_START:false}  # Can be enabled via environment variable
-    initialize-schema: never  # We handle schema via Flyway
+    initialize-schema: always  # Auto-create Spring Batch schema
     
   # Enable scheduling for batch jobs
   scheduling:
@@ -124,12 +124,20 @@ app:
 
   batch:
     job-name: ${BATCH_JOB_NAME:optimized-place-ingestion-job}
-    chunk-size: ${BATCH_CHUNK_SIZE:50}  # Reduced for LLM API performance
-    skip-limit: ${BATCH_SKIP_LIMIT:10}
-    max-retries: ${BATCH_MAX_RETRIES:2}
-    api-timeout: ${BATCH_API_TIMEOUT:30s}
-    strict-filtering: ${BATCH_STRICT_FILTERING:true}
-    auto-initialization: ${BATCH_AUTO_INITIALIZATION:true}
+    chunk-size: ${BATCH_CHUNK_SIZE:10}  # Smaller chunks for faster processing
+    skip-limit: ${BATCH_SKIP_LIMIT:50}  # Increase skip limit to avoid failures
+    max-retries: ${BATCH_MAX_RETRIES:1}  # Reduce retries for speed
+    api-timeout: ${BATCH_API_TIMEOUT:15s}  # Faster timeout
+    strict-filtering: ${BATCH_STRICT_FILTERING:false}  # Skip filtering for speed
+    auto-initialization: ${BATCH_AUTO_INITIALIZATION:false}
+    continuous:
+      enabled: ${APP_BATCH_CONTINUOUS_ENABLED:true}  # Enable continuous batch processing
+
+  checkpoint:
+    enabled: ${CHECKPOINT_ENABLED:true}  # Enable checkpoint system
+    batch-name: ${CHECKPOINT_BATCH_NAME:place-ingestion-batch}
+    region-type: ${CHECKPOINT_REGION_TYPE:sigungu}  # Process at 시/군/구 level
+    auto-resume: ${CHECKPOINT_AUTO_RESUME:true}  # Resume from last checkpoint on restart
 
 # Actuator configuration for monitoring
 management:
@@ -247,7 +255,7 @@ app:
   batch:
     scheduling:
       enabled: ${APP_BATCH_SCHEDULING_ENABLED:true}
-      cron: ${APP_BATCH_SCHEDULING_CRON:0 */30 * * * ?}
+      cron: ${APP_BATCH_SCHEDULING_CRON:0 */1 * * * ?}
     continuous:
       enabled: ${APP_BATCH_CONTINUOUS_ENABLED:false}
     image-generation:
