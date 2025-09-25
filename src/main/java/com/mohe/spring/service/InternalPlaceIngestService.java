@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mohe.spring.controller.InternalBatchController;
 import com.mohe.spring.entity.Place;
 import com.mohe.spring.repository.PlaceRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,7 +16,8 @@ import java.util.Optional;
 
 @Service
 public class InternalPlaceIngestService {
-    
+
+    private static final Logger log = LoggerFactory.getLogger(InternalPlaceIngestService.class);
     private final PlaceRepository placeRepository;
     private final ObjectMapper objectMapper;
     
@@ -25,7 +28,7 @@ public class InternalPlaceIngestService {
     
     @Transactional
     public InternalBatchController.InternalPlaceIngestResponse ingestPlaces(List<InternalBatchController.InternalPlaceIngestRequest> requests) {
-        System.out.println("=== INGESTING " + requests.size() + " PLACES ===");
+        log.info("Starting place ingestion for {} requests", requests.size());
         int processedCount = 0;
         int insertedCount = 0;
         int updatedCount = 0;
@@ -36,46 +39,46 @@ public class InternalPlaceIngestService {
         for (InternalBatchController.InternalPlaceIngestRequest request : requests) {
             try {
                 processedCount++;
-                System.out.println("=== Processing place " + processedCount + "/" + requests.size() + ": " + request.getName() + " ===");
-                System.out.println("NaverID: " + request.getNaverPlaceId() + ", GoogleID: " + request.getGooglePlaceId());
+                log.debug("Processing place {}/{}: {}", processedCount, requests.size(), request.getName());
+                log.info("NaverID: " + request.getNaverPlaceId() + ", GoogleID: " + request.getGooglePlaceId());
                 
                 // Check if place already exists by naverPlaceId or googlePlaceId
                 Optional<Place> existingPlace = findExistingPlace(request);
                 
                 if (existingPlace.isPresent()) {
                     // Update existing place
-                    System.out.println("UPDATING existing place: " + request.getName() + " (DB ID: " + existingPlace.get().getId() + ")");
+                    log.info("UPDATING existing place: " + request.getName() + " (DB ID: " + existingPlace.get().getId() + ")");
                     Place place = existingPlace.get();
                     updatePlaceFromRequest(place, request);
                     Place saved = placeRepository.save(place);
-                    System.out.println("Successfully updated place with ID: " + saved.getId());
+                    log.info("Successfully updated place with ID: " + saved.getId());
                     updatedCount++;
                 } else {
                     // Create new place
-                    System.out.println("CREATING new place: " + request.getName());
+                    log.info("CREATING new place: " + request.getName());
                     Place newPlace = createPlaceFromRequest(request);
                     Place saved = placeRepository.save(newPlace);
-                    System.out.println("Successfully created NEW place with ID: " + saved.getId());
+                    log.info("Successfully created NEW place with ID: " + saved.getId());
                     insertedCount++;
                 }
                 
             } catch (org.springframework.dao.DataIntegrityViolationException e) {
-                System.out.println("CONSTRAINT VIOLATION for place: " + request.getName());
-                System.out.println("NaverID: " + request.getNaverPlaceId() + ", GoogleID: " + request.getGooglePlaceId());
-                System.out.println("Error message: " + e.getMessage());
+                log.info("CONSTRAINT VIOLATION for place: " + request.getName());
+                log.info("NaverID: " + request.getNaverPlaceId() + ", GoogleID: " + request.getGooglePlaceId());
+                log.info("Error message: " + e.getMessage());
                 
                 // Try to find existing place one more time with more debug info
-                System.out.println("Attempting secondary lookup for constraint violation...");
+                log.info("Attempting secondary lookup for constraint violation...");
                 Optional<Place> debugLookup = findExistingPlace(request);
                 if (debugLookup.isPresent()) {
-                    System.out.println("FOUND place in secondary lookup - this indicates a race condition or caching issue");
+                    log.info("FOUND place in secondary lookup - this indicates a race condition or caching issue");
                 } else {
-                    System.out.println("Still no place found in secondary lookup - possible data issue");
+                    log.info("Still no place found in secondary lookup - possible data issue");
                 }
                 
                 skippedCount++;
             } catch (Exception e) {
-                System.out.println("ERROR processing place: " + request.getName() + " - " + e.getMessage());
+                log.info("ERROR processing place: " + request.getName() + " - " + e.getMessage());
                 e.printStackTrace();
                 errorCount++;
                 errors.add("Failed to process place '" + request.getName() + "': " + e.getMessage());
@@ -95,12 +98,12 @@ public class InternalPlaceIngestService {
     }
     
     private Optional<Place> findExistingPlace(InternalBatchController.InternalPlaceIngestRequest request) {
-        System.out.println("Checking for existing place - NaverID: " + request.getNaverPlaceId() + ", GoogleID: " + request.getGooglePlaceId());
+        log.info("Checking for existing place - NaverID: " + request.getNaverPlaceId() + ", GoogleID: " + request.getGooglePlaceId());
         
         if (request.getNaverPlaceId() != null && !request.getNaverPlaceId().trim().isEmpty()) {
             Optional<Place> byNaverId = placeRepository.findByNaverPlaceId(request.getNaverPlaceId().trim());
             if (byNaverId.isPresent()) {
-                System.out.println("Found existing place by NaverID: " + byNaverId.get().getId());
+                log.info("Found existing place by NaverID: " + byNaverId.get().getId());
                 return byNaverId;
             }
         }
@@ -108,12 +111,12 @@ public class InternalPlaceIngestService {
         if (request.getGooglePlaceId() != null && !request.getGooglePlaceId().trim().isEmpty()) {
             Optional<Place> byGoogleId = placeRepository.findByGooglePlaceId(request.getGooglePlaceId().trim());
             if (byGoogleId.isPresent()) {
-                System.out.println("Found existing place by GoogleID: " + byGoogleId.get().getId());
+                log.info("Found existing place by GoogleID: " + byGoogleId.get().getId());
                 return byGoogleId;
             }
         }
         
-        System.out.println("No existing place found for: " + request.getName());
+        log.info("No existing place found for: " + request.getName());
         return Optional.empty();
     }
     

@@ -8,6 +8,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,6 +26,7 @@ import java.util.Map;
 @Tag(name = "Internal Batch Processing", description = "Internal endpoints used by MoheBatch service")
 public class InternalBatchController {
 
+    private static final Logger log = LoggerFactory.getLogger(InternalBatchController.class);
     private final InternalPlaceIngestService internalPlaceIngestService;
 
     public InternalBatchController(InternalPlaceIngestService internalPlaceIngestService) {
@@ -45,13 +48,12 @@ public class InternalBatchController {
             @RequestBody List<InternalPlaceIngestRequest> requests,
             HttpServletRequest httpRequest) {
         try {
-            System.out.println("=== CONTROLLER RECEIVED " + requests.size() + " REQUESTS ===");
+            log.info("Received {} place ingestion requests", requests.size());
             InternalPlaceIngestResponse response = internalPlaceIngestService.ingestPlaces(requests);
-            System.out.println("=== SERVICE RETURNED: " + response.getInsertedCount() + " inserted ===");
+            log.info("Successfully ingested {} places", response.getInsertedCount());
             return ResponseEntity.ok(ApiResponse.success(response));
         } catch (Exception e) {
-            System.out.println("=== CONTROLLER ERROR: " + e.getMessage() + " ===");
-            e.printStackTrace();
+            log.error("Error ingesting places: {}", e.getMessage(), e);
             ApiResponse<InternalPlaceIngestResponse> errorResponse = ApiResponse.error(
                 ErrorCode.INTERNAL_SERVER_ERROR,
                 e.getMessage() != null ? e.getMessage() : "Failed to ingest places",
