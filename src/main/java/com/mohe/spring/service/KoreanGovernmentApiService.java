@@ -145,13 +145,97 @@ public class KoreanGovernmentApiService {
             
         } catch (WebClientException e) {
             logger.error("❌ Network error fetching Korean regions: {}", e.getMessage());
-            return Collections.emptyList();
+            return getHardcodedRegions();
         } catch (Exception e) {
             logger.error("❌ Error fetching Korean administrative regions", e);
-            return Collections.emptyList();
+            return getHardcodedRegions();
         }
     }
-    
+
+    /**
+     * 정부 API 실패 시 하드코딩된 동 데이터 반환 (화재로 인한 서버 다운 대응)
+     * 기존 API와 동일한 구조로 KoreanRegionDto 생성하여 호환성 보장
+     */
+    private List<KoreanRegionDto> getHardcodedRegions() {
+        logger.warn("🔥 정부 API 서버 장애 - 하드코딩된 지역 데이터 사용");
+
+        List<KoreanRegionDto> hardcodedRegions = new ArrayList<>();
+
+        // 서울특별시 주요 동들
+        String[] seoulDongs = {
+            "강남구 신사동", "강남구 논현동", "강남구 압구정동", "강남구 청담동", "강남구 삼성동", "강남구 대치동",
+            "서초구 서초동", "서초구 반포동", "서초구 방배동", "서초구 잠원동",
+            "송파구 잠실동", "송파구 문정동", "송파구 가락동", "송파구 석촌동",
+            "강동구 천호동", "강동구 성내동", "강동구 강일동", "강동구 암사동",
+            "마포구 홍대동", "마포구 합정동", "마포구 상암동", "마포구 연남동",
+            "용산구 이태원동", "용산구 한남동", "용산구 청파동", "용산구 효창동",
+            "중구 명동", "중구 충무로", "중구 을지로", "중구 신당동",
+            "종로구 종로동", "종로구 인사동", "종로구 삼청동", "종로구 혜화동",
+            "성동구 성수동", "성동구 왕십리동", "성동구 금호동", "성동구 행당동"
+        };
+
+        // 경기도 주요 동들
+        String[] gyeonggiDongs = {
+            "수원시 영통구 영통동", "수원시 영통구 매탄동", "수원시 팔달구 행궁동", "수원시 장안구 정자동",
+            "성남시 분당구 정자동", "성남시 분당구 서현동", "성남시 분당구 이매동", "성남시 수정구 신흥동",
+            "안양시 동안구 평촌동", "안양시 만안구 안양동", "안양시 동안구 비산동",
+            "부천시 원미구 중동", "부천시 오정구 원종동", "부천시 소사구 소사동",
+            "고양시 일산동구 백석동", "고양시 일산서구 주엽동", "고양시 덕양구 화정동",
+            "용인시 기흥구 기흥동", "용인시 수지구 수지동", "용인시 처인구 김량장동",
+            "화성시 동탄면 동탄동", "화성시 봉담읍 봉담리", "화성시 태안읍 태안리"
+        };
+
+        // 제주도 주요 동들
+        String[] jejuDongs = {
+            "제주시 일도1동", "제주시 일도2동", "제주시 이도1동", "제주시 이도2동",
+            "제주시 삼도1동", "제주시 삼도2동", "제주시 용담1동", "제주시 용담2동",
+            "제주시 건입동", "제주시 화북동", "제주시 삼양동", "제주시 봉개동",
+            "서귀포시 서귀동", "서귀포시 정방동", "서귀포시 중앙동", "서귀포시 천지동",
+            "서귀포시 효돈동", "서귀포시 영천동", "서귀포시 동홍동", "서귀포시 서홍동"
+        };
+
+        int regionIndex = 1;
+
+        // 서울 데이터 생성
+        for (String dong : seoulDongs) {
+            KoreanRegionDto region = new KoreanRegionDto();
+            region.setRegionCode(String.format("11%05d", regionIndex++));
+            region.setLocationName("서울특별시 " + dong);
+            region.setSidoCode("11"); // 서울특별시
+            region.setSigunguCode("680"); // 강남구 예시
+            region.setUmdCode("001"); // 동 레벨 (isDongLevel() true가 되도록)
+            region.setRiCode("00"); // 동 레벨
+            hardcodedRegions.add(region);
+        }
+
+        // 경기도 데이터 생성
+        for (String dong : gyeonggiDongs) {
+            KoreanRegionDto region = new KoreanRegionDto();
+            region.setRegionCode(String.format("41%05d", regionIndex++));
+            region.setLocationName("경기도 " + dong);
+            region.setSidoCode("41"); // 경기도
+            region.setSigunguCode("460"); // 수원시 예시
+            region.setUmdCode("001"); // 동 레벨
+            region.setRiCode("00"); // 동 레벨
+            hardcodedRegions.add(region);
+        }
+
+        // 제주도 데이터 생성
+        for (String dong : jejuDongs) {
+            KoreanRegionDto region = new KoreanRegionDto();
+            region.setRegionCode(String.format("50%05d", regionIndex++));
+            region.setLocationName("제주특별자치도 " + dong);
+            region.setSidoCode("50"); // 제주특별자치도
+            region.setSigunguCode("110"); // 제주시 예시
+            region.setUmdCode("001"); // 동 레벨
+            region.setRiCode("00"); // 동 레벨
+            hardcodedRegions.add(region);
+        }
+
+        logger.info("🏛️ 하드코딩된 지역 데이터 로드 완료: {} 개 지역", hardcodedRegions.size());
+        return hardcodedRegions;
+    }
+
     /**
      * Get only dong-level administrative regions (filtered)
      * @return List of dong-level regions only

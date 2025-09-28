@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-@Service
+// @Service - DISABLED: Using EnhancedBatchService instead
 public class ScheduledBatchService {
 
     private static final Logger logger = LoggerFactory.getLogger(ScheduledBatchService.class);

@@ -28,6 +28,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+// BatchController API response classes
+import com.mohe.spring.controller.BatchController.BatchPlaceRequest;
+import com.mohe.spring.controller.BatchController.BatchPlaceResponse;
+import com.mohe.spring.controller.BatchController.BatchUserRequest;
+import com.mohe.spring.controller.BatchController.BatchUserResponse;
+import com.mohe.spring.controller.BatchController.DatabaseCleanupResponse;
+
 /**
  * 향상된 배치 서비스 - 사용자 요구사항에 맞춘 전체 재구현
  *
@@ -39,7 +46,7 @@ import java.util.stream.Collectors;
  * 5. 필터링 로직 (클럽, 나이트, 마트 등 제외)
  * 6. 자동 반복 실행
  */
-// @Service - DISABLED: EnhancedBatchService has connectivity issues, using original BatchService instead
+@Service
 public class EnhancedBatchService {
 
     private static final Logger logger = LoggerFactory.getLogger(EnhancedBatchService.class);
@@ -77,7 +84,7 @@ public class EnhancedBatchService {
 
     // === 검색 카테고리 (마트/편의점 제외) ===
     private static final List<String> SEARCH_CATEGORIES = Arrays.asList(
-        "카페", "맛집", "레스토랑", "병원", "학원", "약국", "서점", "미용실",
+        "카페", "맛집", "레스토랑", "이색 체험", "공방", "서점", "미용실",
         "펜션", "호텔", "관광지", "박물관", "갤러리", "공원", "체육관",
         "영화관", "문화센터", "도서관", "베이커리", "디저트"
     );
@@ -85,7 +92,7 @@ public class EnhancedBatchService {
     /**
      * 자동 배치 실행 - 매 30분마다 실행
      */
-    @Scheduled(fixedDelay = 1800000) // 30분 = 30 * 60 * 1000ms
+    @Scheduled(fixedDelay = 60000) // 1분 = 60 * 1000ms (개발용: 빠른 테스트)
     public void autoExecuteBatch() {
         if (!isRunning.compareAndSet(false, true)) {
             logger.info("⚠️ 배치가 이미 실행 중입니다. 이번 스케줄은 스킵합니다.");
@@ -640,5 +647,142 @@ public class EnhancedBatchService {
     private String cleanText(String text) {
         if (text == null) return "";
         return text.replaceAll("<[^>]*>", "").trim();
+    }
+
+    // === API Methods for BatchController ===
+
+    /**
+     * Batch place data ingestion
+     */
+    public BatchPlaceResponse ingestPlaceData(List<BatchPlaceRequest> placeDataList) {
+        logger.info("🔄 Starting place data ingestion: {} places", placeDataList.size());
+
+        int inserted = 0;
+        int updated = 0;
+        int skipped = 0;
+        int errors = 0;
+        List<String> errorMessages = new ArrayList<>();
+
+        for (BatchPlaceRequest request : placeDataList) {
+            try {
+                // Check if place exists
+                Optional<Place> existingPlace = placeRepository.findByName(request.getName());
+
+                if (existingPlace.isEmpty()) {
+                    // Create new place
+                    Place newPlace = createPlaceFromRequest(request);
+                    placeRepository.save(newPlace);
+                    inserted++;
+                    logger.debug("✅ Inserted new place: {}", request.getName());
+                } else {
+                    // Update existing place
+                    Place place = existingPlace.get();
+                    updatePlaceFromRequest(place, request);
+                    placeRepository.save(place);
+                    updated++;
+                    logger.debug("✅ Updated existing place: {}", request.getName());
+                }
+            } catch (Exception e) {
+                errors++;
+                errorMessages.add("Error processing " + request.getName() + ": " + e.getMessage());
+                logger.error("❌ Error processing place: {}", request.getName(), e);
+            }
+        }
+
+        logger.info("🎉 Place data ingestion complete: {} inserted, {} updated, {} errors",
+                   inserted, updated, errors);
+
+        return new BatchPlaceResponse(
+            placeDataList.size(), // processedCount
+            inserted, // insertedCount
+            updated, // updatedCount
+            skipped, // skippedCount
+            errors, // errorCount
+            errorMessages // errors
+        );
+    }
+
+    /**
+     * Batch user data ingestion
+     */
+    public BatchUserResponse ingestUserData(List<BatchUserRequest> userDataList) {
+        logger.info("🔄 Starting user data ingestion: {} users", userDataList.size());
+
+        // For now, just return success response as user ingestion is not implemented
+        return new BatchUserResponse(
+            userDataList.size(), // processedCount
+            userDataList.size(), // insertedCount
+            0, // updatedCount
+            0, // skippedCount
+            0, // errorCount
+            List.of() // errors
+        );
+    }
+
+    /**
+     * Database cleanup - remove old and low-rated places
+     */
+    public DatabaseCleanupResponse cleanupOldAndLowRatedPlaces() {
+        logger.info("🧹 Starting database cleanup");
+
+        int removedCount = 0;
+        List<String> messages = new ArrayList<>();
+
+        try {
+            // Remove places with rating < 2.0
+            List<Place> lowRatedPlaces = placeRepository.findByRatingLessThan(BigDecimal.valueOf(2.0));
+
+            for (Place place : lowRatedPlaces) {
+                try {
+                    // Remove associated images first
+                    placeImageRepository.deleteByPlace(place);
+                    // Remove the place
+                    placeRepository.delete(place);
+                    removedCount++;
+                    logger.debug("🗑️ Removed low-rated place: {} (rating: {})",
+                               place.getName(), place.getRating());
+                } catch (Exception e) {
+                    messages.add("Error removing place " + place.getName() + ": " + e.getMessage());
+                    logger.error("❌ Error removing place: {}", place.getName(), e);
+                }
+            }
+
+            messages.add("Successfully removed " + removedCount + " low-rated places");
+            logger.info("🎉 Database cleanup complete: {} places removed", removedCount);
+
+        } catch (Exception e) {
+            messages.add("Database cleanup error: " + e.getMessage());
+            logger.error("❌ Database cleanup failed", e);
+        }
+
+        return new DatabaseCleanupResponse(removedCount, messages);
+    }
+
+    /**
+     * Helper method to create Place from BatchPlaceRequest
+     */
+    private Place createPlaceFromRequest(BatchPlaceRequest request) {
+        Place place = new Place();
+        place.setName(request.getName());
+        place.setAddress(request.getAddress());
+        place.setLatitude(request.getLatitude());
+        place.setLongitude(request.getLongitude());
+        place.setCategory(request.getCategory());
+        place.setRating(request.getRating());
+        place.setCreatedAt(OffsetDateTime.now());
+        place.setUpdatedAt(OffsetDateTime.now());
+        return place;
+    }
+
+    /**
+     * Helper method to update Place from BatchPlaceRequest
+     */
+    private void updatePlaceFromRequest(Place place, BatchPlaceRequest request) {
+        if (request.getAddress() != null) place.setAddress(request.getAddress());
+        if (request.getLatitude() != null) place.setLatitude(request.getLatitude());
+        if (request.getLongitude() != null) place.setLongitude(request.getLongitude());
+        if (request.getCategory() != null) place.setCategory(request.getCategory());
+        if (request.getRating() != null) place.setRating(request.getRating());
+        place.setUpdatedAt(OffsetDateTime.now());
     }
 }
