@@ -5,6 +5,7 @@ import com.mohe.spring.dto.KoreanRegionDto;
 import com.mohe.spring.dto.KoreanRegionResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -15,6 +16,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -23,45 +25,75 @@ import java.util.stream.Collectors;
  */
 @Service
 public class KoreanGovernmentApiService {
-    
+
     private static final Logger logger = LoggerFactory.getLogger(KoreanGovernmentApiService.class);
-    
+
     private final WebClient webClient;
     private final ObjectMapper objectMapper;
-    
+    private final FallbackRegionService fallbackRegionService;
+
+    @Value("${IS_GOV_SERVER_DOWN:N}")
+    private String isGovServerDown;
+
     // Korean Government API service key (public data)
     private static final String SERVICE_KEY = "f5a3bcde8e1b032f6f0d36b525353d3e6b3843e9d4a478728219054bde74f20f";
     private static final String API_BASE_URL = "http://apis.data.go.kr/1741000/StanReginCd/getStanReginCdList";
-    
+
     // Cache for regions (optional - can be disabled for always fresh data)
     private List<KoreanRegionDto> cachedRegions = null;
     private long lastFetchTime = 0;
     private static final long CACHE_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
-    
-    public KoreanGovernmentApiService(@Value("${app.korean-api.cache-enabled:true}") boolean cacheEnabled) {
+
+    @Autowired
+    public KoreanGovernmentApiService(
+            @Value("${app.korean-api.cache-enabled:true}") boolean cacheEnabled,
+            FallbackRegionService fallbackRegionService) {
         this.webClient = WebClient.builder()
             .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(1024 * 1024)) // 1MB buffer
             .build();
         this.objectMapper = new ObjectMapper();
+        this.fallbackRegionService = fallbackRegionService;
     }
     
     /**
-     * Fetch all Korean administrative regions from the government API
+     * Fetch all Korean administrative regions from the government API or fallback data
      * @return List of all administrative regions (temporary, not stored)
      */
     public List<KoreanRegionDto> fetchAllKoreanRegions() {
+        // Check if government server is down (fire incident)
+        if ("Y".equalsIgnoreCase(isGovServerDown)) {
+            logger.warn("🔥 Government API server is down due to fire incident - using fallback data");
+            List<Map<String, String>> fallbackData = fallbackRegionService.getAllRegions();
+            List<KoreanRegionDto> fallbackRegions = new ArrayList<>();
+
+            for (Map<String, String> locationData : fallbackData) {
+                KoreanRegionDto region = new KoreanRegionDto();
+                region.setLocationName(locationData.get("full"));
+                // Set basic fields for compatibility
+                region.setRegionCode("FALLBACK");
+                region.setSidoCode("11"); // Default Seoul code
+                region.setSigunguCode("000");
+                region.setUmdCode("000");
+                region.setRiCode("00");
+                fallbackRegions.add(region);
+            }
+
+            logger.info("🏛️ Using fallback data: {} regions loaded", fallbackRegions.size());
+            return fallbackRegions;
+        }
+
         // Return cached data if available and not expired
         if (cachedRegions != null && (System.currentTimeMillis() - lastFetchTime) < CACHE_DURATION_MS) {
             logger.info("🏛️ Returning cached Korean regions: {} regions", cachedRegions.size());
             return new ArrayList<>(cachedRegions);
         }
-        
+
         logger.info("🚀 Fetching Korean administrative regions from government API...");
-        
+
         List<KoreanRegionDto> allRegions = new ArrayList<>();
         int page = 1;
         Integer totalCount = null;
-        
+
         try {
             while (true) {
                 final int currentPage = page; // Create final variable for lambda
@@ -174,18 +206,33 @@ public class KoreanGovernmentApiService {
      * @return List of location names (e.g., "강남구", "신사동")
      */
     public List<String> fetchLocationNamesForSearch() {
+        // Check if government server is down (fire incident)
+        if ("Y".equalsIgnoreCase(isGovServerDown)) {
+            logger.warn("🔥 Government API server is down - using fallback region names for search");
+            List<Map<String, String>> fallbackData = fallbackRegionService.getAllRegions();
+            List<String> fallbackLocations = fallbackData.stream()
+                .map(data -> (String) data.get("dong"))
+                .filter(dong -> dong != null && !dong.trim().isEmpty())
+                .distinct()
+                .collect(Collectors.toList());
+            logger.info("📍 Using {} fallback location names for search queries", fallbackLocations.size());
+            logger.info("🎯 Sample fallback locations: {}",
+                       fallbackLocations.stream().limit(10).collect(Collectors.joining(", ")));
+            return fallbackLocations;
+        }
+
         List<KoreanRegionDto> dongRegions = fetchDongLevelRegions();
-        
+
         List<String> locationNames = dongRegions.stream()
             .map(KoreanRegionDto::getSimpleLocationName)
             .filter(name -> name != null && !name.trim().isEmpty())
             .distinct()
             .collect(Collectors.toList());
-            
+
         logger.info("📍 Extracted {} unique location names for search queries", locationNames.size());
-        logger.info("🎯 Sample locations: {}", 
+        logger.info("🎯 Sample locations: {}",
                    locationNames.stream().limit(10).collect(Collectors.joining(", ")));
-        
+
         return locationNames;
     }
     
