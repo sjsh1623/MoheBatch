@@ -2,7 +2,7 @@ package com.mohe.spring.controller;
 
 import com.mohe.spring.dto.ApiResponse;
 import com.mohe.spring.dto.ErrorCode;
-import com.mohe.spring.service.BatchService;
+import com.mohe.spring.service.EnhancedBatchService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -25,10 +25,10 @@ import java.util.Map;
 @Tag(name = "배치 데이터 수집", description = "배치 프로세스를 위한 데이터 수집 API")
 public class BatchController {
 
-    private final BatchService batchService;
-    
-    public BatchController(BatchService batchService) {
-        this.batchService = batchService;
+    private final EnhancedBatchService enhancedBatchService;
+
+    public BatchController(EnhancedBatchService enhancedBatchService) {
+        this.enhancedBatchService = enhancedBatchService;
     }
 
     @PostMapping("/places")
@@ -57,7 +57,7 @@ public class BatchController {
             @Valid @RequestBody List<BatchPlaceRequest> placeDataList,
             HttpServletRequest httpRequest) {
         try {
-            BatchPlaceResponse response = batchService.ingestPlaceData(placeDataList);
+            BatchPlaceResponse response = enhancedBatchService.ingestPlaceData(placeDataList);
             return ResponseEntity.ok(ApiResponse.success(response));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(
@@ -88,7 +88,7 @@ public class BatchController {
             @Valid @RequestBody List<BatchUserRequest> userDataList,
             HttpServletRequest httpRequest) {
         try {
-            BatchUserResponse response = batchService.ingestUserData(userDataList);
+            BatchUserResponse response = enhancedBatchService.ingestUserData(userDataList);
             return ResponseEntity.ok(ApiResponse.success(response));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(
@@ -118,7 +118,7 @@ public class BatchController {
     public ResponseEntity<ApiResponse<DatabaseCleanupResponse>> cleanupDatabase(
             HttpServletRequest httpRequest) {
         try {
-            DatabaseCleanupResponse response = batchService.cleanupOldAndLowRatedPlaces();
+            DatabaseCleanupResponse response = enhancedBatchService.cleanupOldAndLowRatedPlaces();
             return ResponseEntity.ok(ApiResponse.success(response));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(

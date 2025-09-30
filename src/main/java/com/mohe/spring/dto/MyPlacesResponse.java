@@ -6,7 +6,7 @@ import java.util.List;
 public class MyPlacesResponse {
     
     @JsonProperty("places")
-    private List<PlaceDto> places;
+    private List<SimplePlaceDto> places;
     
     @JsonProperty("total_count")
     private int totalCount;
@@ -24,7 +24,7 @@ public class MyPlacesResponse {
     public MyPlacesResponse() {}
     
     // Constructor with fields
-    public MyPlacesResponse(List<PlaceDto> places, int totalCount, int page, int size, boolean hasNext) {
+    public MyPlacesResponse(List<SimplePlaceDto> places, int totalCount, int page, int size, boolean hasNext) {
         this.places = places;
         this.totalCount = totalCount;
         this.page = page;
@@ -33,21 +33,21 @@ public class MyPlacesResponse {
     }
     
     // Static factory method
-    public static MyPlacesResponse of(List<PlaceDto> places, int totalCount, int page, int size, boolean hasNext) {
+    public static MyPlacesResponse of(List<SimplePlaceDto> places, int totalCount, int page, int size, boolean hasNext) {
         return new MyPlacesResponse(places, totalCount, page, size, hasNext);
     }
     
     // Getters and setters
-    public List<PlaceDto> getPlaces() {
+    public List<SimplePlaceDto> getPlaces() {
         return places;
     }
     
-    public void setPlaces(List<PlaceDto> places) {
+    public void setPlaces(List<SimplePlaceDto> places) {
         this.places = places;
     }
     
     // Alias for backward compatibility
-    public void setMyPlaces(List<PlaceDto> places) {
+    public void setMyPlaces(List<SimplePlaceDto> places) {
         this.places = places;
     }
     

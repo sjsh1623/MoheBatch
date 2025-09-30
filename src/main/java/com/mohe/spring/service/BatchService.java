@@ -32,7 +32,7 @@ import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
-@Service
+// @Service - DISABLED: Using EnhancedBatchService instead to eliminate redundant fallback logic
 public class BatchService {
 
     private static final Logger logger = LoggerFactory.getLogger(BatchService.class);
@@ -233,7 +233,7 @@ public class BatchService {
             logger.info("📍 정부 API에서 {}개 지역 정보 가져옴, {}개 선택", regionNames.size(), selectedRegions.size());
 
             // 2. 각 지역별로 다양한 검색 쿼리 실행
-            List<String> searchQueries = Arrays.asList("카페", "맛집", "병원", "학원", "마트", "편의점", "약국");
+            List<String> searchQueries = Arrays.asList("카페", "맛집", "이색 체험", "공방");
 
             for (String regionName : selectedRegions) {
                 // 지역별로 무작위 쿼리 선택
@@ -301,7 +301,7 @@ public class BatchService {
         logger.info("🔄 Fallback 모드: 기본 쿼리로 데이터 수집");
         int collected = 0;
 
-        List<String> basicQueries = Arrays.asList("카페", "맛집", "병원", "편의점", "학원");
+        List<String> basicQueries = Arrays.asList("카페", "맛집", "이색 체험", "공방", "관광지");
         Collections.shuffle(basicQueries);
 
         for (String query : basicQueries.subList(0, 3)) {
