@@ -730,12 +730,15 @@ public class EnhancedBatchService {
 
         try {
             // Remove places with rating < 2.0
-            List<Place> lowRatedPlaces = placeRepository.findByRatingLessThan(BigDecimal.valueOf(2.0));
+            List<Place> lowRatedPlaces = placeRepository.findOldLowRatedPlaces(
+                OffsetDateTime.now(),
+                BigDecimal.valueOf(2.0)
+            );
 
             for (Place place : lowRatedPlaces) {
                 try {
                     // Remove associated images first
-                    placeImageRepository.deleteByPlace(place);
+                    placeImageRepository.deleteByPlaceId(place.getId());
                     // Remove the place
                     placeRepository.delete(place);
                     removedCount++;
@@ -765,12 +768,18 @@ public class EnhancedBatchService {
         Place place = new Place();
         place.setName(request.getName());
         place.setAddress(request.getAddress());
-        place.setLatitude(request.getLatitude());
-        place.setLongitude(request.getLongitude());
+        if (request.getLatitude() != null) {
+            place.setLatitude(BigDecimal.valueOf(request.getLatitude()));
+        }
+        if (request.getLongitude() != null) {
+            place.setLongitude(BigDecimal.valueOf(request.getLongitude()));
+        }
         place.setCategory(request.getCategory());
-        place.setRating(request.getRating());
+        if (request.getRating() != null) {
+            place.setRating(BigDecimal.valueOf(request.getRating()));
+        }
         place.setCreatedAt(OffsetDateTime.now());
-        place.setUpdatedAt(OffsetDateTime.now());
+        place.setUpdatedAt(OffsetDateTime.now().toLocalDateTime());
         return place;
     }
 
@@ -779,10 +788,16 @@ public class EnhancedBatchService {
      */
     private void updatePlaceFromRequest(Place place, BatchPlaceRequest request) {
         if (request.getAddress() != null) place.setAddress(request.getAddress());
-        if (request.getLatitude() != null) place.setLatitude(request.getLatitude());
-        if (request.getLongitude() != null) place.setLongitude(request.getLongitude());
+        if (request.getLatitude() != null) {
+            place.setLatitude(BigDecimal.valueOf(request.getLatitude()));
+        }
+        if (request.getLongitude() != null) {
+            place.setLongitude(BigDecimal.valueOf(request.getLongitude()));
+        }
         if (request.getCategory() != null) place.setCategory(request.getCategory());
-        if (request.getRating() != null) place.setRating(request.getRating());
-        place.setUpdatedAt(OffsetDateTime.now());
+        if (request.getRating() != null) {
+            place.setRating(BigDecimal.valueOf(request.getRating()));
+        }
+        place.setUpdatedAt(OffsetDateTime.now().toLocalDateTime());
     }
 }

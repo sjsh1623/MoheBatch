@@ -297,7 +297,7 @@ public class PlaceService {
             return new CurrentTimeRecommendationsResponse(placeDtos, timeContext, "맑음", timeOfDay);
         }
     }
-    
+
     public PlaceListResponse getPlacesList(int page, int limit, String sort) {
         PageRequest pageRequest = PageRequest.of(page, limit);
         Page<Place> placePage;
@@ -321,6 +321,20 @@ public class PlaceService {
         
         return new PlaceListResponse(placeDtos, (int) placePage.getTotalElements(), 
                                    placePage.getTotalPages(), page, limit);
+    }
+
+    public PlaceListResponse getNearbyPlaces(double latitude, double longitude, double radiusMeters, int limit) {
+        double safeRadiusMeters = radiusMeters > 0 ? radiusMeters : 3000.0;
+        double radiusKilometers = safeRadiusMeters / 1000.0;
+        int safeLimit = Math.max(1, Math.min(limit, 50));
+
+        List<Place> places = placeRepository.findNearbyPlacesForLLM(latitude, longitude, radiusKilometers, safeLimit);
+
+        List<SimplePlaceDto> placeDtos = places.stream()
+            .map(this::convertToSimplePlaceDto)
+            .collect(Collectors.toList());
+
+        return new PlaceListResponse(placeDtos, placeDtos.size(), 1, 0, placeDtos.size());
     }
     
     /**

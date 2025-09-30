@@ -3,6 +3,7 @@ package com.mohe.spring.controller;
 import com.mohe.spring.dto.*;
 import com.mohe.spring.service.ActivityService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -11,6 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -74,6 +76,29 @@ public class ActivityController {
                 ApiResponse.error(
                     ErrorCode.INTERNAL_SERVER_ERROR,
                     e.getMessage() != null ? e.getMessage() : "최근 조회한 장소 목록 조회에 실패했습니다",
+                    httpRequest.getRequestURI()
+                )
+            );
+        }
+    }
+
+    @PostMapping("/recent-places")
+    @Operation(
+        summary = "최근 조회한 장소 기록",
+        description = "사용자가 장소 상세를 확인할 때 최근 조회 이력으로 저장합니다."
+    )
+    public ResponseEntity<ApiResponse<Void>> recordRecentPlace(
+            @Parameter(description = "최근 조회 장소 요청", required = true)
+            @Valid @RequestBody RecentViewRequest request,
+            HttpServletRequest httpRequest) {
+        try {
+            activityService.recordRecentPlaceView(request.getPlaceId());
+            return ResponseEntity.ok(ApiResponse.success("최근 조회 이력이 저장되었습니다."));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(
+                ApiResponse.error(
+                    ErrorCode.INTERNAL_SERVER_ERROR,
+                    e.getMessage() != null ? e.getMessage() : "최근 조회 이력 저장에 실패했습니다",
                     httpRequest.getRequestURI()
                 )
             );

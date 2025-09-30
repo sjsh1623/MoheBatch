@@ -227,6 +227,35 @@ public class PlaceController {
         }
     }
 
+    @GetMapping("/nearby")
+    @Operation(
+        summary = "주변 장소 조회",
+        description = "좌표를 기준으로 반경 내 인기 장소를 조회합니다."
+    )
+    public ResponseEntity<ApiResponse<PlaceListResponse>> getNearbyPlaces(
+            @Parameter(description = "사용자 위도", required = true, example = "37.5665")
+            @RequestParam double latitude,
+            @Parameter(description = "사용자 경도", required = true, example = "126.9780")
+            @RequestParam double longitude,
+            @Parameter(description = "검색 반경 (미터)", example = "3000")
+            @RequestParam(defaultValue = "3000") double radius,
+            @Parameter(description = "결과 개수", example = "20")
+            @RequestParam(defaultValue = "20") int limit,
+            HttpServletRequest httpRequest) {
+        try {
+            PlaceListResponse response = placeService.getNearbyPlaces(latitude, longitude, radius, limit);
+            return ResponseEntity.ok(ApiResponse.success(response));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(
+                ApiResponse.error(
+                    ErrorCode.INTERNAL_SERVER_ERROR,
+                    e.getMessage() != null ? e.getMessage() : "주변 장소 조회에 실패했습니다",
+                    httpRequest.getRequestURI()
+                )
+            );
+        }
+    }
+
     @GetMapping("/debug")
     @Operation(
         summary = "디버그 - 장소 데이터 확인",

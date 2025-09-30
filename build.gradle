@@ -7,6 +7,10 @@ plugins {
 group = 'com.mohe'
 version = '0.0.1-SNAPSHOT'
 
+ext {
+    testcontainersVersion = '1.19.7'
+}
+
 java {
     sourceCompatibility = JavaVersion.VERSION_21
     targetCompatibility = JavaVersion.VERSION_21
@@ -16,7 +20,18 @@ repositories {
     mavenCentral()
 }
 
+configurations.all {
+    resolutionStrategy {
+        eachDependency { details ->
+            if (details.requested.group == 'org.jetbrains.kotlin' && details.requested.name == 'kotlin-reflect' && details.requested.version == null) {
+                details.useVersion '1.9.20'
+            }
+        }
+    }
+}
+
 dependencies {
+    implementation platform("org.springframework.boot:spring-boot-dependencies:3.2.0")
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
@@ -66,9 +81,9 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'com.h2database:h2'
-    testImplementation 'org.testcontainers:junit-jupiter'
-    testImplementation 'org.testcontainers:postgresql'
-    testImplementation 'org.testcontainers:redis'
+    testImplementation platform("org.testcontainers:testcontainers-bom:${testcontainersVersion}")
+    testImplementation "org.testcontainers:junit-jupiter"
+    testImplementation "org.testcontainers:postgresql"
 }
 
 tasks.withType(JavaCompile) {
