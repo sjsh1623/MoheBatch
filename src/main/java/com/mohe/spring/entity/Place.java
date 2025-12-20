@@ -138,6 +138,9 @@ public class Place {
     
     @OneToMany(mappedBy = "place", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<RecentView> recentViews = new ArrayList<>();
+
+    @OneToMany(mappedBy = "place", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+    private List<PlaceMenu> menus = new ArrayList<>();
     
     // Default constructor for JPA
     public Place() {}
@@ -477,8 +480,16 @@ public class Place {
     public List<RecentView> getRecentViews() {
         return recentViews;
     }
-    
+
     public void setRecentViews(List<RecentView> recentViews) {
         this.recentViews = recentViews;
+    }
+
+    public List<PlaceMenu> getMenus() {
+        return menus;
+    }
+
+    public void setMenus(List<PlaceMenu> menus) {
+        this.menus = menus;
     }
 }

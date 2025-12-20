@@ -407,21 +407,71 @@ public class ImageGenerationService {
      * 웹 검색 결과 적용: SAS 토큰 서명 보호를 위한 직접 URL 처리
      */
     private String downloadAndSaveImage(String imageUrl, String placeName) {
+        return downloadAndSaveImageToFolder(imageUrl, placeName, "place", "_ai");
+    }
+
+    /**
+     * 메뉴 이미지 다운로드 및 저장
+     * 폴더: images/menu/
+     * 파일명: {placeId}_{menuName}_{uuid}.jpg
+     */
+    public String downloadAndSaveMenuImage(String imageUrl, Long placeId, String menuName) {
+        if (imageUrl == null || imageUrl.isEmpty() || imageUrl.equals("https://search.pstatic.net/common/")) {
+            logger.debug("Skipping invalid menu image URL: {}", imageUrl);
+            return null;
+        }
+
+        String safeName = String.format("%d_%s", placeId, sanitizeFileName(menuName));
+        return downloadAndSaveImageToFolder(imageUrl, safeName, "menu", "");
+    }
+
+    /**
+     * 장소 이미지 다운로드 및 저장 (크롤링용)
+     * 폴더: images/place/
+     * 파일명: {placeName}_{uuid}.jpg
+     */
+    public String downloadAndSavePlaceImage(String imageUrl, String placeName) {
+        if (imageUrl == null || imageUrl.isEmpty()) {
+            logger.debug("Skipping invalid place image URL");
+            return null;
+        }
+
+        String safeName = sanitizeFileName(placeName);
+        return downloadAndSaveImageToFolder(imageUrl, safeName, "place", "");
+    }
+
+    /**
+     * 파일명 안전화 처리
+     */
+    private String sanitizeFileName(String name) {
+        if (name == null) return "unknown";
+
+        String safeName = name.replaceAll("[^a-zA-Z0-9가-힣\\s\\-_]", "")
+                             .replaceAll("\\s+", "_")
+                             .trim();
+        if (safeName.length() > 50) {
+            safeName = safeName.substring(0, 50);
+        }
+        return safeName.isEmpty() ? "unknown" : safeName;
+    }
+
+    /**
+     * 이미지를 지정된 폴더에 다운로드 및 저장
+     * @param imageUrl 이미지 URL
+     * @param baseName 파일 기본 이름
+     * @param subfolder 하위 폴더 (place 또는 menu)
+     * @param suffix 파일명 접미사 (예: _ai)
+     * @return 웹 접근 가능 경로 또는 null
+     */
+    private String downloadAndSaveImageToFolder(String imageUrl, String baseName, String subfolder, String suffix) {
         try {
-            logger.info("🔽 Starting image download for: {} from URL: {}", placeName, imageUrl.substring(0, Math.min(100, imageUrl.length())) + "...");
+            logger.info("🔽 Starting image download to {}: {} from URL: {}",
+                subfolder, baseName, imageUrl.substring(0, Math.min(100, imageUrl.length())) + "...");
 
-            // 안전한 파일명 생성
-            String safeName = placeName.replaceAll("[^a-zA-Z0-9가-힣\\s\\-_]", "")
-                                       .replaceAll("\\s+", "_")
-                                       .trim();
-            if (safeName.length() > 50) {
-                safeName = safeName.substring(0, 50);
-            }
+            String fileName = baseName + "_" + UUID.randomUUID().toString().substring(0, 8) + suffix + ".jpg";
 
-            String fileName = safeName + "_" + UUID.randomUUID().toString().substring(0, 8) + "_ai.jpg";
-
-            // 저장 디렉토리 확인 및 생성
-            Path storageDir = Paths.get(imageStorageDir);
+            // 저장 디렉토리 확인 및 생성 (images/place 또는 images/menu)
+            Path storageDir = Paths.get(imageStorageDir, subfolder);
             if (!Files.exists(storageDir)) {
                 Files.createDirectories(storageDir);
                 logger.info("Created image storage directory: {}", storageDir);
@@ -439,8 +489,8 @@ public class ImageGenerationService {
             Files.write(filePath, imageData);
 
             // 웹 접근 가능한 경로 반환
-            String webPath = "/images/places/" + fileName;
-            logger.info("✅ Image saved successfully: {} -> {} ({} bytes)", placeName, webPath, imageData.length);
+            String webPath = "/images/" + subfolder + "/" + fileName;
+            logger.info("✅ Image saved successfully: {} -> {} ({} bytes)", baseName, webPath, imageData.length);
 
             return webPath;
 

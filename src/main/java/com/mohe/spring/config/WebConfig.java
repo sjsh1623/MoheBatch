@@ -24,13 +24,23 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        // Serve images from /image directory at localhost:8080/image/
+        // Serve images from /image directory at localhost:8080/image/ (legacy)
         String resourceLocation = "file:" + imageStorageDir + "/";
         registry.addResourceHandler("/image/**")
                 .addResourceLocations(resourceLocation);
 
-        // Serve images from /images/places directory
+        // Serve images from /images/places directory (legacy)
         registry.addResourceHandler("/images/places/**")
                 .addResourceLocations(resourceLocation);
+
+        // Serve place images from /images/place/
+        String placeImagesLocation = "file:" + imageStorageDir + "/place/";
+        registry.addResourceHandler("/images/place/**")
+                .addResourceLocations(placeImagesLocation);
+
+        // Serve menu images from /images/menu/
+        String menuImagesLocation = "file:" + imageStorageDir + "/menu/";
+        registry.addResourceHandler("/images/menu/**")
+                .addResourceLocations(menuImagesLocation);
     }
 }
