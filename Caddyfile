@@ -1,0 +1,16 @@
+mohe.today {
+    # Batch API
+    handle /batch/* {
+        reverse_proxy batch:8081
+    }
+
+    # Health check
+    handle /health {
+        reverse_proxy batch:8081
+    }
+
+    # Crawler API (optional)
+    handle /crawler/* {
+        reverse_proxy crawler:4000
+    }
+}

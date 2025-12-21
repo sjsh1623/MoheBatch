@@ -1,4 +1,21 @@
 services:
+  # Caddy reverse proxy
+  caddy:
+    image: caddy:2-alpine
+    container_name: mohe-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - mohe-network
+    restart: unless-stopped
+    depends_on:
+      - batch
+
   # Batch server - connects to external PostgreSQL from MoheSpring
   batch:
     build: .
@@ -58,6 +75,8 @@ services:
 
 volumes:
   batch_images:
+  caddy_data:
+  caddy_config:
 
 networks:
   mohe-network:

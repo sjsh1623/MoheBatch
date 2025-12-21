@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 @RestController
-@RequestMapping("/api/batch")
+@RequestMapping("/batch")
 public class BatchController {
 
     private static final Logger log = LoggerFactory.getLogger(BatchController.class);

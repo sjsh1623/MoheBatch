@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * - ORDER BY id ASC
  */
 @RestController
-@RequestMapping("/api/batch/embedding")
+@RequestMapping("/batch/embedding")
 public class EmbeddingController {
 
     private static final Logger log = LoggerFactory.getLogger(EmbeddingController.class);
