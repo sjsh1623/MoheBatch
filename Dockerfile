@@ -20,19 +20,26 @@ RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
+# Create directory for images
+RUN mkdir -p /app/images/places
+
 # Copy built jar from build stage
 COPY --from=build /app/build/libs/*.jar app.jar
 
-# Run the application with JVM HTTP 클라이언트 최적화 설정
-EXPOSE 8080
+# Batch server runs on port 8081
+EXPOSE 8081
+
+# Run the application with JVM optimization settings
 CMD ["java", \
     "-Djdk.httpclient.responseBufferSize=65536", \
     "-Djdk.httpclient.maxResponseHeaderSize=32768", \
-    "-Dhttp.agent=MoheSpring/1.0", \
+    "-Dhttp.agent=MoheBatch/1.0", \
     "-Djava.net.useSystemProxies=false", \
     "-Dsun.net.http.allowRestrictedHeaders=true", \
     "-Dhttp.keepAlive=true", \
     "-Dhttp.maxConnections=20", \
     "-Xms512m", \
-    "-Xmx1g", \
+    "-Xmx2g", \
+    "-XX:+UseContainerSupport", \
+    "-XX:MaxRAMPercentage=75.0", \
     "-jar", "app.jar"]

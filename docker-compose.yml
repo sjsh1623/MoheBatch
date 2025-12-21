@@ -1,50 +1,68 @@
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: mohe-postgres
-    environment:
-      POSTGRES_DB: mohe_db
-      POSTGRES_USER: mohe_user
-      POSTGRES_PASSWORD: mohe_password
+  # Batch server - connects to external PostgreSQL from MoheSpring
+  batch:
+    build: .
+    container_name: mohe-batch
     ports:
-      - "16239:5432"
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      # Database (same as MoheSpring)
+      DB_HOST: ${DB_HOST:-mohe-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-mohe_db}
+      DB_USERNAME: ${DB_USERNAME:-mohe_user}
+      DB_PASSWORD: ${DB_PASSWORD:-mohe_password}
+      # Crawler service
+      CRAWLER_BASE_URL: ${CRAWLER_BASE_URL:-http://mohe-crawler:4000}
+      CRAWLER_TIMEOUT_MINUTES: ${CRAWLER_TIMEOUT_MINUTES:-30}
+      # OpenAI
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # Batch worker settings
+      BATCH_TOTAL_WORKERS: ${BATCH_TOTAL_WORKERS:-3}
+      BATCH_THREADS_PER_WORKER: ${BATCH_THREADS_PER_WORKER:-5}
+      BATCH_CHUNK_SIZE: ${BATCH_CHUNK_SIZE:-10}
+      # Image storage
+      IMAGE_STORAGE_PATH: /app/images
+    env_file:
+      - .env
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - batch_images:/app/images
     networks:
       - mohe-network
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mohe_user -d mohe_db"]
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Crawler service (MoheCrawler - Flask + Selenium)
+  crawler:
+    build: ../MoheCrawler
+    container_name: mohe-crawler
+    ports:
+      - "4000:4000"
+    environment:
+      FLASK_ENV: production
+      PYTHONUNBUFFERED: 1
+    networks:
+      - mohe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
 
-  app:
-    build: .
-    container_name: mohe-spring-app
-    ports:
-      - "8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      SPRING_PROFILES_ACTIVE: docker
-      NAVER_CLIENT_ID: ${NAVER_CLIENT_ID}
-      NAVER_CLIENT_SECRET: ${NAVER_CLIENT_SECRET}
-      GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      IS_OPENAI_ACTIVE: ${IS_OPENAI_ACTIVE}
-      OLLAMA_HOST: ${OLLAMA_HOST}
-      OLLAMA_MODEL: ${OLLAMA_MODEL}
-      JWT_SECRET: ${JWT_SECRET}
-    env_file:
-      - .env
-    networks:
-      - mohe-network
-    restart: unless-stopped
-
 volumes:
-  postgres_data:
+  batch_images:
 
 networks:
   mohe-network:
+    # Use external network from MoheSpring if running together
+    # Or create new network if running standalone
+    # external: true
+    # name: mohespring_mohe-network
     driver: bridge

@@ -1,96 +1,73 @@
 plugins {
+    id 'java'
     id 'org.springframework.boot' version '3.2.0'
     id 'io.spring.dependency-management' version '1.1.4'
-    id 'java'
 }
 
 group = 'com.mohe'
-version = '0.0.1-SNAPSHOT'
-
-ext {
-    testcontainersVersion = '1.19.7'
-}
+version = '1.0.0'
 
 java {
     sourceCompatibility = JavaVersion.VERSION_21
     targetCompatibility = JavaVersion.VERSION_21
 }
 
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
 repositories {
     mavenCentral()
 }
 
-configurations.all {
-    resolutionStrategy {
-        eachDependency { details ->
-            if (details.requested.group == 'org.jetbrains.kotlin' && details.requested.name == 'kotlin-reflect' && details.requested.version == null) {
-                details.useVersion '1.9.20'
-            }
-        }
-    }
-}
-
 dependencies {
-    implementation platform("org.springframework.boot:spring-boot-dependencies:3.2.0")
+    // Spring Boot Starters
     implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-webflux'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-batch'
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
-    implementation 'org.springframework.boot:spring-boot-starter-security'
-    implementation 'org.springframework.boot:spring-boot-starter-mail'
-    // Jackson dependencies are already included in spring-boot-starter-web
-    // HikariCP is already included in spring-boot-starter-data-jpa
-    
-    // JWT
-    implementation 'io.jsonwebtoken:jjwt-api:0.12.5'
-    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.5'
-    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.5'
-    
-    // PostgreSQL driver
+
+    // Spring Batch Integration (for AsyncItemProcessor/Writer)
+    implementation 'org.springframework.batch:spring-batch-integration:5.1.0'
+    implementation 'org.springframework.integration:spring-integration-core:6.2.0'
+
+    // Database
     runtimeOnly 'org.postgresql:postgresql'
 
-    // Flyway for database migrations
-    implementation 'org.flywaydb:flyway-core:9.16.3'
-    
-    // BCrypt is already included in spring-boot-starter-security
-    
-    // Redis for token storage (optional)
-    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
-    
-    // Swagger/OpenAPI documentation
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.1.0'
-    
-    // Vector database support  
+    // PGvector for embedding storage
     implementation 'com.pgvector:pgvector:0.1.4'
-    implementation 'com.vladmihalcea:hibernate-types-60:2.21.1'
-    
-    // YAML configuration support
-    implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml'
-    
-    // HTML sanitization for email content
-    implementation 'org.jsoup:jsoup:1.17.2'
-    
+
+    // Hibernate Types for PostgreSQL Array
+    implementation 'io.hypersistence:hypersistence-utils-hibernate-63:3.7.0'
+
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // Jackson
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+
+    // OpenAPI (Swagger)
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0'
+
+    // OpenAI for description generation
     implementation 'com.aallam.openai:openai-client:3.8.0'
     implementation 'io.ktor:ktor-client-okhttp:2.3.9'
 
-    // HTTP Client Libraries - 가장 유명하고 안정적인 라이브러리들
-    implementation 'com.squareup.okhttp3:okhttp:4.12.0'  // 가장 인기 있는 HTTP 클라이언트
-    implementation 'org.apache.httpcomponents.client5:httpclient5:5.3' // Apache HttpClient 5
-    
-    // Test dependencies
+    // Test
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'org.springframework.security:spring-security-test'
-    testImplementation 'com.h2database:h2'
-    testImplementation platform("org.testcontainers:testcontainers-bom:${testcontainersVersion}")
-    testImplementation "org.testcontainers:junit-jupiter"
-    testImplementation "org.testcontainers:postgresql"
-}
-
-tasks.withType(JavaCompile) {
-    options.release = 21
-    options.compilerArgs += ['-Xlint:unchecked', '-Xlint:deprecation']
+    testImplementation 'org.springframework.batch:spring-batch-test'
+    testRuntimeOnly 'com.h2database:h2'
 }
 
 tasks.named('test') {
     useJUnitPlatform()
+}
+
+bootJar {
+    archiveFileName = 'mohebatch.jar'
 }

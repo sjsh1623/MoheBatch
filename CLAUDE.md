@@ -2,6 +2,15 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## MoheBatch - Batch Processing Server
+
+MoheBatch is a standalone Spring Batch server for processing place data from MoheSpring's database. It handles:
+- Crawling place data via MoheCrawler service
+- Generating AI descriptions via OpenAI API
+- Downloading and managing place images
+- Distributed processing with multiple workers (crawling)
+- Keyword embedding generation (sequential processing)
+
 ## Build and Development Commands
 
 ### Gradle Tasks
@@ -9,14 +18,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Build the application
 ./gradlew build
 
-# Run tests (uses H2 in-memory database)
+# Run tests
 ./gradlew test
-
-# Run specific test class
-./gradlew test --tests "com.mohe.spring.MoheSpringApplicationTests"
-
-# Run tests with profiles
-./gradlew test -Dspring.profiles.active=test
 
 # Clean build
 ./gradlew clean build
@@ -27,104 +30,173 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Docker Development
 ```bash
-# Start PostgreSQL and Spring app
+# Start batch server with crawler
 docker compose up --build
 
-# Start only PostgreSQL for local development
-docker compose up postgres
+# Start in background
+docker compose up -d
+
+# View logs
+docker compose logs -f batch
 
 # Stop all services
 docker compose down
 ```
 
 ### Application URLs
-- **Health Check**: http://localhost:8080/health
-- **Swagger UI**: http://localhost:8080/swagger-ui.html
-- **OpenAPI Spec**: http://localhost:8080/v3/api-docs
+- **Health Check**: http://localhost:8081/health
+- **Batch Status**: http://localhost:8081/api/batch/status
+
+## API Endpoints
+
+### Crawling Batch API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/batch/start/{workerId}` | Start batch for specific worker (0-2) |
+| POST | `/api/batch/start-all` | Start all workers |
+| POST | `/api/batch/stop/{workerId}` | Stop specific worker |
+| POST | `/api/batch/stop-all` | Stop all workers |
+| GET | `/api/batch/status` | Get all workers status |
+| GET | `/api/batch/status/{workerId}` | Get specific worker status |
+| GET | `/health` | Health check |
+
+### Embedding Batch API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/batch/embedding/start` | Start embedding job (sequential) |
+| POST | `/api/batch/embedding/stop` | Stop embedding job |
+| GET | `/api/batch/embedding/status` | Get embedding job status |
+| GET | `/api/batch/embedding/health` | Check embedding service health |
+
+### Example Usage
+```bash
+# Start worker 0
+curl -X POST http://localhost:8081/api/batch/start/0
+
+# Start all 3 workers
+curl -X POST http://localhost:8081/api/batch/start-all
+
+# Check status
+curl http://localhost:8081/api/batch/status
+
+# Stop worker 1
+curl -X POST http://localhost:8081/api/batch/stop/1
+
+# Start embedding job
+curl -X POST http://localhost:8081/api/batch/embedding/start
+
+# Check embedding status
+curl http://localhost:8081/api/batch/embedding/status
+
+# Stop embedding job
+curl -X POST http://localhost:8081/api/batch/embedding/stop
+```
 
 ## Architecture Overview
 
-### Core Design Patterns
+### Core Components
 
-**API Response Pattern**: All controllers use a standardized `ApiResponse<out T>` wrapper with covariant generic type to handle Kotlin variance issues. The pattern is:
-```kotlin
-// Success response
-ResponseEntity.ok(ApiResponse.success(data))
+**CrawlingReader**:
+- Reads places with `crawler_found = false`
+- Distributes data using `ID % totalWorkers = workerId`
+- Uses `ORDER BY id ASC` for consistent ordering
+- Paging with configurable page size
 
-// Error response  
-ResponseEntity.badRequest().body(ApiResponse.error(code, message, path))
+**CrawlingProcessor** (Async):
+- Calls MoheCrawler to fetch place data
+- Generates AI descriptions via OpenAI
+- Processes in parallel using AsyncItemProcessor
 
-// Unauthorized (not ResponseEntity.unauthorized() - doesn't exist)
-ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error(...))
-```
+**CrawlingWriter**:
+- Clears existing collections (orphanRemoval)
+- Saves new data from crawler
+- Downloads images (deletes existing before re-downloading)
+- Sets `crawler_found = true` on completion
+- Auto-updates `updated_at` via @PreUpdate
 
-**Security Architecture**: JWT-based stateless authentication with:
-- Access tokens (1 hour expiry) for API calls
-- Refresh tokens (30 days expiry) for token renewal
-- Spring Security filter chain with custom JWT authentication filter
-- Role-based access control with `@PreAuthorize("hasRole('USER')")`
+### Worker Distribution
 
-**Database Layer**: JPA/Hibernate with:
-- PostgreSQL for production/docker
-- H2 in-memory for tests (profile: `test`)
-- HikariCP connection pooling
-- Database initialization via `src/main/resources/db/init.sql`
+Data is distributed across 3 workers using modulo:
+- Worker 0: Places where `id % 3 = 0`
+- Worker 1: Places where `id % 3 = 1`
+- Worker 2: Places where `id % 3 = 2`
 
 ### Package Structure
 
-- **config/**: Spring configuration classes (Security, OpenAPI, Application)
-- **controller/**: REST endpoints organized by domain (Auth, User, Place, Bookmark, Activity)
-- **dto/**: Data transfer objects with validation annotations
-- **entity/**: JPA entities representing database tables
-- **repository/**: Spring Data JPA repositories
-- **service/**: Business logic layer
-- **security/**: JWT handling, user authentication, custom filters
-- **exception/**: Global exception handler for consistent error responses
+```
+com.mohe.batch/
+├── MoheBatchApplication.java    # Main entry point
+├── config/                      # Spring configurations
+│   ├── BatchConfig.java        # Async JobLauncher config
+│   └── PGvectorType.java       # PGvector Hibernate type
+├── controller/                  # REST controllers
+│   ├── BatchController.java     # Crawling batch API
+│   ├── EmbeddingController.java # Embedding batch API
+│   └── HealthController.java    # Health check
+├── dto/                         # Data transfer objects
+│   ├── crawling/               # Crawler DTOs
+│   ├── embedding/              # Embedding DTOs
+│   └── ApiResponse.java        # Standard API response
+├── entity/                      # JPA entities
+│   └── PlaceKeywordEmbedding.java  # Embedding entity
+├── job/                         # Spring Batch components
+│   ├── CrawlingJobConfig.java  # Crawling job config
+│   ├── CrawlingReader.java     # Crawling item reader
+│   ├── EmbeddingJobConfig.java # Embedding job config (sequential)
+│   └── EmbeddingReader.java    # Embedding item reader
+├── repository/                  # Spring Data JPA repositories
+│   └── PlaceKeywordEmbeddingRepository.java
+└── service/                     # Business services
+    ├── BatchStatusService.java  # Worker status tracking
+    ├── CrawlingService.java     # Crawler API client
+    ├── EmbeddingClient.java     # Embedding service client
+    ├── ImageService.java        # Image download
+    └── OpenAiDescriptionService.java  # AI description
+```
 
-### Key Technical Details
+## Configuration
 
-**Swagger Integration**: Uses SpringDoc OpenAPI 3 with comprehensive Korean documentation. All controllers use `@SwaggerApiResponse` (aliased to avoid conflict with custom `ApiResponse` class).
+### Environment Variables
 
-**MBTI-Based Recommendations**: Core business logic includes MBTI personality type matching for place recommendations. The `places` table includes MBTI scoring fields, and the recommendation algorithm considers user preferences and personality type. Advanced recommendation engine includes configurable weights for Jaccard/Cosine similarity, time decay, diversity, and scheduled similarity matrix updates.
+| Variable | Default | Description |
+|----------|---------|-------------|
+| DB_HOST | mohe-postgres | PostgreSQL host |
+| DB_PORT | 5432 | PostgreSQL port |
+| DB_NAME | mohe_db | Database name |
+| DB_USERNAME | mohe_user | Database user |
+| DB_PASSWORD | - | Database password |
+| CRAWLER_BASE_URL | http://mohe-crawler:4000 | Crawler service URL |
+| CRAWLER_TIMEOUT_MINUTES | 30 | Crawler request timeout |
+| OPENAI_API_KEY | - | OpenAI API key |
+| BATCH_TOTAL_WORKERS | 3 | Total number of workers |
+| BATCH_THREADS_PER_WORKER | 5 | Threads per worker |
+| BATCH_CHUNK_SIZE | 10 | Items per chunk |
+| IMAGE_STORAGE_PATH | /app/images | Image storage directory |
+| EMBEDDING_SERVICE_URL | http://localhost:8000 | Embedding service URL |
+| BATCH_EMBEDDING_CHUNK_SIZE | 5 | Embedding chunk size |
 
-**Multi-Step Registration**: Authentication flow supports:
-1. Email signup → OTP verification → nickname/password setup
-2. Temporary user storage during registration process
-3. Email verification with 5-digit OTP codes
+### Spring Profiles
 
-**Profile Management**: Users can set comprehensive preferences including MBTI type, age range, transportation method, and space preferences (workshop, exhibition, nature, etc.).
+- `docker`: Containerized deployment (default)
+- `local`: Local development with localhost database
 
-## Important Implementation Notes
+## Important Notes
 
-**Kotlin-Specific Considerations**: 
-- The `ApiResponse<out T>` uses covariant generics to resolve variance issues with Spring's ResponseEntity
-- Controller methods should not use explicit type parameters on ResponseEntity methods (they cause compilation errors)
-- Source code is in `src/main/java/` directory despite being Kotlin (project structure preference)
+### Database Sharing
+MoheBatch shares the same PostgreSQL database with MoheSpring. Ensure proper network configuration when running both services.
 
-**Database Connection**:
-- Docker profile uses `postgres:5432` hostname
-- Local profile uses `localhost:5432`
-- Test profile automatically uses H2 in-memory database
+### Image Storage
+Images are stored in `/app/images/places/{placeId}/` directory. The volume is mounted for persistence.
 
-**Environment Profiles**:
-- `docker`: Containerized deployment
-- `local`: Local development with external PostgreSQL  
-- `test`: Automated testing with H2 database
+### Async Processing
+Uses Spring Batch's AsyncItemProcessor for parallel processing within each worker. Configure `BATCH_THREADS_PER_WORKER` based on available resources.
 
-**Security Configuration**: Public endpoints (no authentication required):
-- `/api/auth/**` - Authentication endpoints
-- `/health` - Health check
-- `/swagger-ui/**` - API documentation
-- `/v3/api-docs/**` - OpenAPI specification
+### Error Handling
+- Failed places are logged but don't stop the batch
+- Crawler errors return error response, processing continues
+- OpenAI failures skip description generation
 
-**External Integrations**: The application includes configuration for:
-- Naver Place API (client ID/secret required)
-- Google Places API (API key required)
-- Ollama AI model integration (configurable host/model)
-- Redis for token storage (optional)
-
-**Advanced Configuration**: Comprehensive tuning parameters available for:
-- Recommendation algorithm weights and thresholds
-- Similarity matrix scheduling and refresh intervals
-- Time decay functions for recommendation scoring
-- Database connection pooling with HikariCP
+### Graceful Shutdown
+Use `/api/batch/stop-all` endpoint for graceful shutdown. Workers complete current chunk before stopping.
