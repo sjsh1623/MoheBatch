@@ -41,8 +41,8 @@ services:
       BATCH_CHUNK_SIZE: ${BATCH_CHUNK_SIZE:-10}
       # Image storage
       IMAGE_STORAGE_PATH: /app/images
-    env_file:
-      - .env
+      # Embedding service
+      EMBEDDING_SERVICE_URL: ${EMBEDDING_SERVICE_URL:-http://localhost:8000}
     volumes:
       - batch_images:/app/images
     networks:

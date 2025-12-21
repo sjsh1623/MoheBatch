@@ -72,11 +72,13 @@ public class HealthController {
         info.put("status", "Running");
         info.put("endpoints", Map.of(
                 "health", "/health",
-                "batchStatus", "/api/batch/status",
-                "startWorker", "POST /api/batch/start/{workerId}",
-                "startAll", "POST /api/batch/start-all",
-                "stopWorker", "POST /api/batch/stop/{workerId}",
-                "stopAll", "POST /api/batch/stop-all"
+                "batchStatus", "/batch/status",
+                "startWorker", "POST /batch/start/{workerId}",
+                "startAll", "POST /batch/start-all",
+                "stopWorker", "POST /batch/stop/{workerId}",
+                "stopAll", "POST /batch/stop-all",
+                "embeddingStart", "POST /batch/embedding/start",
+                "embeddingStatus", "/batch/embedding/status"
         ));
 
         return ResponseEntity.ok(ApiResponse.success(info));
