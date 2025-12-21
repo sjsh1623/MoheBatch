@@ -25,24 +25,24 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: docker
       # Database (same as MoheSpring)
-      DB_HOST: ${DB_HOST:-mohe-postgres}
-      DB_PORT: ${DB_PORT:-5432}
-      DB_NAME: ${DB_NAME:-mohe_db}
-      DB_USERNAME: ${DB_USERNAME:-mohe_user}
-      DB_PASSWORD: ${DB_PASSWORD:-mohe_password}
+      DB_HOST: 100.99.236.50
+      DB_PORT: 16239
+      DB_NAME: mohe_db
+      DB_USERNAME: mohe_user
+      DB_PASSWORD: mohe_password
       # Crawler service
-      CRAWLER_BASE_URL: ${CRAWLER_BASE_URL:-http://mohe-crawler:4000}
-      CRAWLER_TIMEOUT_MINUTES: ${CRAWLER_TIMEOUT_MINUTES:-30}
+      CRAWLER_BASE_URL: http://crawler:4000
+      CRAWLER_TIMEOUT_MINUTES: 30
       # OpenAI
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       # Batch worker settings
-      BATCH_TOTAL_WORKERS: ${BATCH_TOTAL_WORKERS:-3}
-      BATCH_THREADS_PER_WORKER: ${BATCH_THREADS_PER_WORKER:-5}
-      BATCH_CHUNK_SIZE: ${BATCH_CHUNK_SIZE:-10}
+      BATCH_TOTAL_WORKERS: 3
+      BATCH_THREADS_PER_WORKER: 5
+      BATCH_CHUNK_SIZE: 10
       # Image storage
       IMAGE_STORAGE_PATH: /app/images
       # Embedding service
-      EMBEDDING_SERVICE_URL: ${EMBEDDING_SERVICE_URL:-http://localhost:8000}
+      EMBEDDING_SERVICE_URL: ${EMBEDDING_SERVICE_URL:-http://100.99.236.50:6000}
     volumes:
       - batch_images:/app/images
     networks:
