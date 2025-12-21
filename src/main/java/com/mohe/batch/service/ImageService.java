@@ -150,6 +150,40 @@ public class ImageService {
     }
 
     /**
+     * 메뉴 이미지 다운로드
+     *
+     * @param placeId   장소 ID
+     * @param menuIndex 메뉴 인덱스 (1부터 시작)
+     * @param imageUrl  이미지 URL
+     * @return 저장된 이미지 경로 (실패 시 null)
+     */
+    public String downloadMenuImage(Long placeId, int menuIndex, String imageUrl) {
+        if (imageUrl == null || imageUrl.isEmpty()) {
+            return null;
+        }
+
+        try {
+            // 메뉴 이미지 디렉토리 경로
+            Path menuImageDir = Paths.get(storagePath, "places", String.valueOf(placeId), "menus");
+            Files.createDirectories(menuImageDir);
+
+            String fileName = String.format("menu_%d.jpg", menuIndex);
+            Path filePath = menuImageDir.resolve(fileName);
+
+            boolean downloaded = downloadImage(imageUrl, filePath);
+            if (downloaded) {
+                String relativePath = "/images/places/" + placeId + "/menus/" + fileName;
+                log.debug("Saved menu image: {}", relativePath);
+                return relativePath;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to download menu image: {}", e.getMessage());
+        }
+
+        return null;
+    }
+
+    /**
      * 파일명에 사용할 수 없는 문자 제거
      */
     private String sanitizeFileName(String name) {

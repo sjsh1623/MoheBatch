@@ -1,6 +1,8 @@
 package com.mohe.batch.job;
 
 import com.mohe.batch.dto.crawling.CrawledDataDto;
+import com.mohe.batch.dto.crawling.MenuDataDto;
+import com.mohe.batch.dto.crawling.MenuItemDto;
 import com.mohe.batch.dto.crawling.WeeklyHoursDto;
 import com.mohe.batch.entity.*;
 import com.mohe.batch.repository.PlaceRepository;
@@ -347,12 +349,60 @@ public class CrawlingJobConfig {
                     }
                 }
 
+                // 메뉴 크롤링
+                place.getMenus().clear();
+                try {
+                    log.info("Starting menu crawl for '{}' (ID: {})", place.getName(), place.getId());
+                    var menuResponse = crawlingService.crawlMenuData(searchQuery, place.getName()).block();
+
+                    if (menuResponse != null && menuResponse.isSuccess() && menuResponse.getData() != null) {
+                        MenuDataDto menuData = menuResponse.getData();
+                        if (menuData.getMenus() != null && !menuData.getMenus().isEmpty()) {
+                            int menuCount = 0;
+                            for (int i = 0; i < menuData.getMenus().size(); i++) {
+                                MenuItemDto menuItem = menuData.getMenus().get(i);
+                                if (menuItem.getName() != null && !menuItem.getName().trim().isEmpty()) {
+                                    PlaceMenu placeMenu = new PlaceMenu();
+                                    placeMenu.setPlace(place);
+                                    placeMenu.setName(sanitizeText(menuItem.getName()));
+                                    placeMenu.setPrice(sanitizeText(menuItem.getPrice()));
+                                    placeMenu.setDescription(sanitizeText(menuItem.getDescription()));
+                                    placeMenu.setImageUrl(menuItem.getImageUrl());
+                                    placeMenu.setDisplayOrder(i + 1);
+
+                                    // 메뉴 이미지 다운로드
+                                    if (menuItem.getImageUrl() != null && !menuItem.getImageUrl().isEmpty()) {
+                                        try {
+                                            String menuImagePath = imageService.downloadMenuImage(
+                                                    place.getId(),
+                                                    i + 1,
+                                                    menuItem.getImageUrl()
+                                            );
+                                            placeMenu.setImagePath(menuImagePath);
+                                        } catch (Exception e) {
+                                            log.warn("Failed to download menu image for '{}': {}", menuItem.getName(), e.getMessage());
+                                        }
+                                    }
+
+                                    place.getMenus().add(placeMenu);
+                                    menuCount++;
+                                }
+                            }
+                            log.info("Successfully crawled {} menus for '{}' (ID: {})", menuCount, place.getName(), place.getId());
+                        }
+                    } else {
+                        log.debug("No menu data found for '{}' (ID: {})", place.getName(), place.getId());
+                    }
+                } catch (Exception e) {
+                    log.warn("Menu crawling failed for '{}': {}", place.getName(), e.getMessage());
+                }
+
                 place.setCrawlerFound(true);
                 place.setReady(false);
 
-                log.info("Successfully crawled '{}' - Reviews: {}, Images: {}, Keywords: {}",
+                log.info("Successfully crawled '{}' - Reviews: {}, Images: {}, Menus: {}, Keywords: {}",
                         place.getName(), place.getReviewCount(), place.getImages().size(),
-                        String.join(", ", place.getKeyword()));
+                        place.getMenus().size(), String.join(", ", place.getKeyword()));
 
                 return place;
 
@@ -373,6 +423,14 @@ public class CrawlingJobConfig {
 
             for (Place place : chunk.getItems()) {
                 try {
+                    // 컬렉션 데이터를 먼저 복사해둠 (JPA 세션 캐시로 인해 같은 객체를 참조할 수 있음)
+                    List<PlaceDescription> newDescriptions = new ArrayList<>(place.getDescriptions());
+                    List<PlaceImage> newImages = new ArrayList<>(place.getImages());
+                    List<PlaceBusinessHour> newBusinessHours = new ArrayList<>(place.getBusinessHours());
+                    List<PlaceSns> newSns = new ArrayList<>(place.getSns());
+                    List<PlaceReview> newReviews = new ArrayList<>(place.getReviews());
+                    List<PlaceMenu> newMenus = new ArrayList<>(place.getMenus());
+
                     // Fresh entity 조회
                     Place freshPlace = placeRepository.findById(place.getId())
                             .orElseThrow(() -> new IllegalStateException("Place not found: " + place.getId()));
@@ -383,12 +441,14 @@ public class CrawlingJobConfig {
                     freshPlace.getBusinessHours().clear();
                     freshPlace.getSns().clear();
                     freshPlace.getReviews().clear();
+                    freshPlace.getMenus().clear();
 
                     // orphans 삭제 실행
                     placeRepository.flush();
 
-                    // 새 데이터 복사
-                    updatePlaceFields(freshPlace, place);
+                    // 새 데이터 복사 (미리 복사해둔 데이터 사용)
+                    updatePlaceFieldsWithCollections(freshPlace, place, newDescriptions, newImages,
+                            newBusinessHours, newSns, newReviews, newMenus);
 
                     // 저장 (updated_at은 @PreUpdate로 자동 갱신)
                     placeRepository.saveAndFlush(freshPlace);
@@ -407,7 +467,15 @@ public class CrawlingJobConfig {
         };
     }
 
-    private void updatePlaceFields(Place target, Place source) {
+    private void updatePlaceFieldsWithCollections(
+            Place target, Place source,
+            List<PlaceDescription> descriptions,
+            List<PlaceImage> images,
+            List<PlaceBusinessHour> businessHours,
+            List<PlaceSns> sns,
+            List<PlaceReview> reviews,
+            List<PlaceMenu> menus) {
+
         target.setName(source.getName());
         target.setLatitude(source.getLatitude());
         target.setLongitude(source.getLongitude());
@@ -422,35 +490,41 @@ public class CrawlingJobConfig {
         target.setReady(source.getReady());
         target.setCrawlerFound(source.getCrawlerFound());
 
-        // 컬렉션 복사
-        if (source.getDescriptions() != null) {
-            source.getDescriptions().forEach(desc -> {
+        // 미리 복사해둔 컬렉션 데이터 사용
+        if (descriptions != null) {
+            descriptions.forEach(desc -> {
                 desc.setPlace(target);
                 target.getDescriptions().add(desc);
             });
         }
-        if (source.getImages() != null) {
-            source.getImages().forEach(img -> {
+        if (images != null) {
+            images.forEach(img -> {
                 img.setPlace(target);
                 target.getImages().add(img);
             });
         }
-        if (source.getBusinessHours() != null) {
-            source.getBusinessHours().forEach(hour -> {
+        if (businessHours != null) {
+            businessHours.forEach(hour -> {
                 hour.setPlace(target);
                 target.getBusinessHours().add(hour);
             });
         }
-        if (source.getSns() != null) {
-            source.getSns().forEach(s -> {
+        if (sns != null) {
+            sns.forEach(s -> {
                 s.setPlace(target);
                 target.getSns().add(s);
             });
         }
-        if (source.getReviews() != null) {
-            source.getReviews().forEach(review -> {
+        if (reviews != null) {
+            reviews.forEach(review -> {
                 review.setPlace(target);
                 target.getReviews().add(review);
+            });
+        }
+        if (menus != null) {
+            menus.forEach(menu -> {
+                menu.setPlace(target);
+                target.getMenus().add(menu);
             });
         }
     }

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mohe.batch.dto.crawling.CrawledDataDto;
 import com.mohe.batch.dto.crawling.CrawlingResponse;
+import com.mohe.batch.dto.crawling.MenuDataDto;
 import io.netty.channel.ChannelOption;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.handler.timeout.WriteTimeoutHandler;
@@ -76,6 +77,38 @@ public class CrawlingService {
                 .onErrorResume(error -> {
                     log.error("Crawling error for '{}': {}", placeName, error.getMessage());
                     CrawlingResponse<CrawledDataDto> errorResponse = new CrawlingResponse<>();
+                    errorResponse.setSuccess(false);
+                    errorResponse.setMessage(error.getMessage());
+                    errorResponse.setData(null);
+                    return Mono.just(errorResponse);
+                });
+    }
+
+    public Mono<CrawlingResponse<MenuDataDto>> crawlMenuData(String searchQuery, String placeName) {
+        Map<String, String> requestBody = new HashMap<>();
+        requestBody.put("searchQuery", searchQuery + " " + placeName);
+        requestBody.put("placeName", placeName);
+        // 메뉴 제한 없음 - 모든 메뉴 크롤링
+
+        return webClient.post()
+                .uri("/api/v1/place/menus")
+                .bodyValue(requestBody)
+                .retrieve()
+                .bodyToMono(Map.class)
+                .map(responseMap -> {
+                    CrawlingResponse<MenuDataDto> response = new CrawlingResponse<>();
+                    response.setSuccess((Boolean) responseMap.get("success"));
+                    response.setMessage((String) responseMap.get("message"));
+                    MenuDataDto data = objectMapper.convertValue(
+                            responseMap.get("data"),
+                            new TypeReference<MenuDataDto>() {}
+                    );
+                    response.setData(data);
+                    return response;
+                })
+                .onErrorResume(error -> {
+                    log.error("Menu crawling error for '{}': {}", placeName, error.getMessage());
+                    CrawlingResponse<MenuDataDto> errorResponse = new CrawlingResponse<>();
                     errorResponse.setSuccess(false);
                     errorResponse.setMessage(error.getMessage());
                     errorResponse.setData(null);
