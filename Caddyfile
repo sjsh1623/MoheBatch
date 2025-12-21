@@ -11,6 +11,6 @@ mohe.today {
 
     # Crawler API (optional)
     handle /crawler/* {
-        reverse_proxy crawler:4000
+        reverse_proxy crawler:2000
     }
 }
