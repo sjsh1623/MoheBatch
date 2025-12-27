@@ -43,12 +43,63 @@ public class UpdateController {
     }
 
     /**
+     * 특정 워커로 업데이트 실행 (분산 처리용)
+     * POST /batch/update/start/{workerId}
+     */
+    @PostMapping("/start/{workerId}")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> startWorkerUpdate(@PathVariable int workerId) {
+        if (workerId < 0 || workerId >= totalWorkers) {
+            return ResponseEntity.badRequest().body(
+                    ApiResponse.error("INVALID_WORKER_ID",
+                            String.format("Worker ID must be between 0 and %d", totalWorkers - 1))
+            );
+        }
+        return startSingleWorkerUpdate(workerId, "all", true, true, true);
+    }
+
+    /**
      * 모든 업데이트 실행 (메뉴 + 이미지 + 리뷰)
      * POST /batch/update/start-all
      */
     @PostMapping("/start-all")
     public ResponseEntity<ApiResponse<Map<String, Object>>> startAllUpdates() {
         return startUpdate("all", true, true, true);
+    }
+
+    /**
+     * 단일 워커 업데이트 시작
+     */
+    private ResponseEntity<ApiResponse<Map<String, Object>>> startSingleWorkerUpdate(
+            int workerId, String updateType, boolean updateMenus, boolean updateImages, boolean updateReviews) {
+        try {
+            JobParameters jobParameters = new JobParametersBuilder()
+                    .addLong("workerId", (long) workerId)
+                    .addLong("totalWorkers", (long) totalWorkers)
+                    .addString("updateType", updateType)
+                    .addString("updateMenus", String.valueOf(updateMenus))
+                    .addString("updateImages", String.valueOf(updateImages))
+                    .addString("updateReviews", String.valueOf(updateReviews))
+                    .addString("startTime", LocalDateTime.now().toString())
+                    .toJobParameters();
+
+            JobExecution execution = jobLauncher.run(updateJob, jobParameters);
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("workerId", workerId);
+            result.put("jobExecutionId", execution.getId());
+            result.put("status", execution.getStatus().toString());
+
+            log.info("✅ Worker {} 업데이트 시작: executionId={}", workerId, execution.getId());
+            return ResponseEntity.ok(ApiResponse.success(result));
+
+        } catch (JobExecutionAlreadyRunningException e) {
+            return ResponseEntity.badRequest().body(
+                    ApiResponse.error("ALREADY_RUNNING", "Worker " + workerId + " is already running"));
+        } catch (Exception e) {
+            log.error("❌ Worker {} 시작 실패: {}", workerId, e.getMessage());
+            return ResponseEntity.internalServerError().body(
+                    ApiResponse.error("START_FAILED", e.getMessage()));
+        }
     }
 
     /**
