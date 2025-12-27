@@ -1,26 +1,30 @@
-# 맥북 에어용 docker-compose (워커 2, 3 담당)
+# 서브 서버용 docker-compose (워커 2, 3, 4 담당)
 # 사용법:
-#   1. 맥북 에어에 MoheBatch 폴더 복사
-#   2. docker compose -f docker-compose.macbook-air.yml up -d --build
+#   1. git clone 또는 폴더 복사
+#   2. docker compose -f docker-compose.sub.yml up -d --build
 #   3. curl -X POST http://localhost:8081/batch/start/2
 #   4. curl -X POST http://localhost:8081/batch/start/3
+#   5. curl -X POST http://localhost:8081/batch/start/4
 
 services:
   batch:
     build: .
-    container_name: mohe-batch-air
+    container_name: mohe-batch-sub
     ports:
       - "8081:8081"
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      # JVM Memory Limit
-      JAVA_OPTS: "-Xmx768m -Xms256m -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
-      # Database (Tailscale IP)
+      # Database (메인 맥 Tailscale IP)
       DB_HOST: 100.99.236.50
       DB_PORT: 16239
       DB_NAME: mohe_db
       DB_USERNAME: mohe_user
       DB_PASSWORD: mohe_password
+      # Spring DataSource (명시적 설정)
+      SPRING_DATASOURCE_URL: jdbc:postgresql://100.99.236.50:16239/mohe_db
+      SPRING_DATASOURCE_USERNAME: mohe_user
+      SPRING_DATASOURCE_PASSWORD: mohe_password
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
       # Crawler service (local)
       CRAWLER_BASE_URL: http://crawler:2000
       CRAWLER_TIMEOUT_MINUTES: 2
