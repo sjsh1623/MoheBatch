@@ -14,6 +14,7 @@ services:
       - "8081:8081"
     environment:
       SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8081
       # Database (메인 맥 Tailscale IP)
       DB_HOST: 100.99.236.50
       DB_PORT: 16239
