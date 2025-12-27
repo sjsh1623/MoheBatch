@@ -22,7 +22,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       # Batch worker settings (distributed across 2 machines)
       # 총 4워커: 이 머신(0,1), 맥북에어(2,3)
-      BATCH_TOTAL_WORKERS: 4
+      BATCH_TOTAL_WORKERS: 5
       BATCH_THREADS_PER_WORKER: 1
       BATCH_CHUNK_SIZE: 2
       # Async pool settings (reduced for memory)
