@@ -1,10 +1,11 @@
 # 서브 서버용 docker-compose (워커 2, 3, 4 담당)
+# 총 5워커: 메인 머신(0,1), 맥북에어(2,3,4)
 # 사용법:
 #   1. git clone 또는 폴더 복사
 #   2. docker compose -f docker-compose.sub.yml up -d --build
-#   3. curl -X POST http://localhost:8081/batch/start/2
-#   4. curl -X POST http://localhost:8081/batch/start/3
-#   5. curl -X POST http://localhost:8081/batch/start/4
+#   3. curl -X POST http://localhost:8080/batch/update/start/2
+#   4. curl -X POST http://localhost:8080/batch/update/start/3
+#   5. curl -X POST http://localhost:8080/batch/update/start/4
 
 services:
   batch:
@@ -31,7 +32,7 @@ services:
       CRAWLER_TIMEOUT_MINUTES: 2
       # OpenAI
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      # Batch worker settings - 총 4워커, 맥북에어는 2,3 담당
+      # Batch worker settings - 총 5워커, 맥북에어는 2,3,4 담당
       BATCH_TOTAL_WORKERS: 5
       BATCH_THREADS_PER_WORKER: 1
       BATCH_CHUNK_SIZE: 2
@@ -57,7 +58,7 @@ services:
         reservations:
           memory: 512M
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3
