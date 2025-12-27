@@ -38,8 +38,8 @@ CMD ["java", \
     "-Dsun.net.http.allowRestrictedHeaders=true", \
     "-Dhttp.keepAlive=true", \
     "-Dhttp.maxConnections=20", \
-    "-Xms512m", \
-    "-Xmx2g", \
+    "-Xms1g", \
+    "-Xmx4g", \
     "-XX:+UseContainerSupport", \
     "-XX:MaxRAMPercentage=75.0", \
     "-jar", "app.jar"]

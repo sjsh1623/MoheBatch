@@ -7,7 +7,7 @@ import com.mohe.batch.dto.crawling.WeeklyHoursDto;
 import com.mohe.batch.entity.*;
 import com.mohe.batch.repository.PlaceRepository;
 import com.mohe.batch.service.CrawlingService;
-import com.mohe.batch.service.ImageService;
+import com.mohe.batch.service.ImageProcessorClient;
 import com.mohe.batch.service.OpenAiDescriptionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,7 +42,7 @@ public class CrawlingJobConfig {
 
     private final CrawlingService crawlingService;
     private final OpenAiDescriptionService openAiDescriptionService;
-    private final ImageService imageService;
+    private final ImageProcessorClient imageProcessorClient;
     private final PlaceRepository placeRepository;
 
     @Value("${batch.async.core-pool-size:5}")
@@ -63,12 +63,12 @@ public class CrawlingJobConfig {
     public CrawlingJobConfig(
             CrawlingService crawlingService,
             OpenAiDescriptionService openAiDescriptionService,
-            ImageService imageService,
+            ImageProcessorClient imageProcessorClient,
             PlaceRepository placeRepository
     ) {
         this.crawlingService = crawlingService;
         this.openAiDescriptionService = openAiDescriptionService;
-        this.imageService = imageService;
+        this.imageProcessorClient = imageProcessorClient;
         this.placeRepository = placeRepository;
     }
 
@@ -156,18 +156,18 @@ public class CrawlingJobConfig {
                     }
                 }
 
-                log.info("Starting crawl for '{}' (ID: {})", place.getName(), place.getId());
+                log.info("🚀 ========== 크롤링 시작 ========== '{}' (ID: {})", place.getName(), place.getId());
                 var response = crawlingService.crawlPlaceData(searchQuery, place.getName()).block();
 
                 if (response == null || response.getData() == null) {
-                    log.error("Crawling failed for '{}' - null response", place.getName());
+                    log.error("❌ 크롤링 실패 '{}' - 응답 없음", place.getName());
                     place.setCrawlerFound(false);
                     place.setReady(false);
                     return place;
                 }
 
                 CrawledDataDto crawledData = response.getData();
-                log.info("Crawl response received for '{}'", place.getName());
+                log.info("📥 응답 수신 '{}'", place.getName());
 
                 // 리뷰 카운트 업데이트
                 try {
@@ -268,10 +268,14 @@ public class CrawlingJobConfig {
                 }
                 place.setKeyword(keywords);
 
-                // 이미지 다운로드 (기존 이미지 삭제 후 저장)
+                // 기존 이미지 파일 삭제 후 새 이미지 저장
+                int deletedPlaceImages = imageProcessorClient.deletePlaceImages(place.getId());
+                if (deletedPlaceImages > 0) {
+                    log.info("🗑️ 기존 장소 이미지 {}개 삭제 (ID: {})", deletedPlaceImages, place.getId());
+                }
                 place.getImages().clear();
                 if (crawledData.getImageUrls() != null && !crawledData.getImageUrls().isEmpty()) {
-                    List<String> savedImagePaths = imageService.downloadAndSaveImages(
+                    List<String> savedImagePaths = imageProcessorClient.savePlaceImages(
                             place.getId(),
                             place.getName(),
                             crawledData.getImageUrls()
@@ -332,6 +336,7 @@ public class CrawlingJobConfig {
 
                 // 리뷰
                 place.getReviews().clear();
+                int savedReviewCount = 0;
                 if (crawledData.getReviews() != null && !crawledData.getReviews().isEmpty()) {
                     int reviewCount = Math.min(crawledData.getReviews().size(), 10);
                     for (int i = 0; i < reviewCount; i++) {
@@ -344,22 +349,32 @@ public class CrawlingJobConfig {
                                 review.setReviewText(sanitizedReviewText);
                                 review.setOrderIndex(i + 1);
                                 place.getReviews().add(review);
+                                savedReviewCount++;
                             }
                         }
                     }
+                    log.info("📝 리뷰 {}개 저장 완료 '{}' (ID: {})", savedReviewCount, place.getName(), place.getId());
+                } else {
+                    log.debug("📭 리뷰 데이터 없음 '{}' (ID: {})", place.getName(), place.getId());
                 }
 
-                // 메뉴 크롤링
+                // 기존 메뉴 이미지 파일 삭제 후 메뉴 크롤링
+                int deletedMenuImages = imageProcessorClient.deleteMenuImages(place.getId());
+                if (deletedMenuImages > 0) {
+                    log.info("🗑️ 기존 메뉴 이미지 {}개 삭제 (ID: {})", deletedMenuImages, place.getId());
+                }
                 place.getMenus().clear();
                 try {
-                    log.info("Starting menu crawl for '{}' (ID: {})", place.getName(), place.getId());
+                    log.info("🍽️ 메뉴 크롤링 시작 '{}' (ID: {})", place.getName(), place.getId());
                     var menuResponse = crawlingService.crawlMenuData(searchQuery, place.getName()).block();
 
                     if (menuResponse != null && menuResponse.isSuccess() && menuResponse.getData() != null) {
                         MenuDataDto menuData = menuResponse.getData();
                         if (menuData.getMenus() != null && !menuData.getMenus().isEmpty()) {
                             int menuCount = 0;
-                            for (int i = 0; i < menuData.getMenus().size(); i++) {
+                            int maxMenus = Math.min(menuData.getMenus().size(), 50); // 최대 50개 제한
+                            int menuImageCount = 0;
+                            for (int i = 0; i < maxMenus; i++) {
                                 MenuItemDto menuItem = menuData.getMenus().get(i);
                                 if (menuItem.getName() != null && !menuItem.getName().trim().isEmpty()) {
                                     PlaceMenu placeMenu = new PlaceMenu();
@@ -370,17 +385,19 @@ public class CrawlingJobConfig {
                                     placeMenu.setImageUrl(menuItem.getImageUrl());
                                     placeMenu.setDisplayOrder(i + 1);
 
-                                    // 메뉴 이미지 다운로드
+                                    // 메뉴 이미지 저장 (ImageProcessor 서버 사용)
                                     if (menuItem.getImageUrl() != null && !menuItem.getImageUrl().isEmpty()) {
                                         try {
-                                            String menuImagePath = imageService.downloadMenuImage(
+                                            String menuImagePath = imageProcessorClient.saveMenuImage(
                                                     place.getId(),
-                                                    i + 1,
+                                                    menuItem.getName(),
                                                     menuItem.getImageUrl()
                                             );
                                             placeMenu.setImagePath(menuImagePath);
+                                            if (menuImagePath != null) menuImageCount++;
+                                            log.debug("🖼️ 메뉴 이미지 저장 [{}/{}] {}", i + 1, maxMenus, menuItem.getName());
                                         } catch (Exception e) {
-                                            log.warn("Failed to download menu image for '{}': {}", menuItem.getName(), e.getMessage());
+                                            log.warn("⚠️ 메뉴 이미지 저장 실패 '{}': {}", menuItem.getName(), e.getMessage());
                                         }
                                     }
 
@@ -388,26 +405,26 @@ public class CrawlingJobConfig {
                                     menuCount++;
                                 }
                             }
-                            log.info("Successfully crawled {} menus for '{}' (ID: {})", menuCount, place.getName(), place.getId());
+                            log.info("🍽️ 메뉴 {} / 이미지 {} 저장 완료 '{}'", menuCount, menuImageCount, place.getName());
                         }
                     } else {
-                        log.debug("No menu data found for '{}' (ID: {})", place.getName(), place.getId());
+                        log.debug("📭 메뉴 데이터 없음 '{}' (ID: {})", place.getName(), place.getId());
                     }
                 } catch (Exception e) {
-                    log.warn("Menu crawling failed for '{}': {}", place.getName(), e.getMessage());
+                    log.warn("⚠️ 메뉴 크롤링 실패 '{}': {}", place.getName(), e.getMessage());
                 }
 
                 place.setCrawlerFound(true);
                 place.setReady(false);
 
-                log.info("Successfully crawled '{}' - Reviews: {}, Images: {}, Menus: {}, Keywords: {}",
+                log.info("✅ ========== 크롤링 완료 ========== '{}' | 리뷰: {} | 이미지: {} | 메뉴: {}",
                         place.getName(), place.getReviewCount(), place.getImages().size(),
-                        place.getMenus().size(), String.join(", ", place.getKeyword()));
+                        place.getMenus().size());
 
                 return place;
 
             } catch (Exception e) {
-                log.error("Crawling failed for '{}': {}", place.getName(), e.getMessage());
+                log.error("❌ 크롤링 실패 '{}': {}", place.getName(), e.getMessage());
                 place.setCrawlerFound(false);
                 place.setReady(false);
                 return place;

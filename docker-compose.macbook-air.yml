@@ -1,47 +1,49 @@
+# 맥북 에어용 docker-compose (워커 2, 3 담당)
+# 사용법:
+#   1. 맥북 에어에 MoheBatch 폴더 복사
+#   2. docker compose -f docker-compose.macbook-air.yml up -d --build
+#   3. curl -X POST http://localhost:8081/batch/start/2
+#   4. curl -X POST http://localhost:8081/batch/start/3
+
 services:
-  # Batch server - connects to external PostgreSQL from MoheSpring
   batch:
     build: .
-    container_name: mohe-batch
+    container_name: mohe-batch-air
     ports:
       - "8081:8081"
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      # JVM Memory Limit (OOM Prevention)
+      # JVM Memory Limit
       JAVA_OPTS: "-Xmx768m -Xms256m -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
-      # Database (same as MoheSpring)
+      # Database (Tailscale IP)
       DB_HOST: 100.99.236.50
       DB_PORT: 16239
       DB_NAME: mohe_db
       DB_USERNAME: mohe_user
       DB_PASSWORD: mohe_password
-      # Crawler service
+      # Crawler service (local)
       CRAWLER_BASE_URL: http://crawler:2000
       CRAWLER_TIMEOUT_MINUTES: 2
       # OpenAI
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      # Batch worker settings (distributed across 2 machines)
-      # 총 4워커: 이 머신(0,1), 맥북에어(2,3)
+      # Batch worker settings - 총 4워커, 맥북에어는 2,3 담당
       BATCH_TOTAL_WORKERS: 4
       BATCH_THREADS_PER_WORKER: 1
       BATCH_CHUNK_SIZE: 2
-      # Async pool settings (reduced for memory)
+      # Async pool settings
       BATCH_ASYNC_CORE_POOL_SIZE: 1
       BATCH_ASYNC_MAX_POOL_SIZE: 2
       BATCH_ASYNC_QUEUE_CAPACITY: 10
-      # Image storage
+      # Image storage (로컬)
       IMAGE_STORAGE_PATH: /app/images
-      # Image Processor service
-      IMAGE_PROCESSOR_URL: http://app:5200
+      # Image Processor - 메인 맥의 Tailscale IP
+      IMAGE_PROCESSOR_URL: http://100.99.236.50:5200
       # Embedding service
-      EMBEDDING_SERVICE_URL: ${EMBEDDING_SERVICE_URL:-http://100.99.236.50:6000}
+      EMBEDDING_SERVICE_URL: http://100.99.236.50:6000
     volumes:
-      # 호스트의 /Mohe/images 디렉토리를 컨테이너에 마운트
-      - /Users/andrewlim/Desktop/Mohe/images:/app/images
+      - ./images:/app/images
     networks:
       - mohe-network
-      - mohereact_mohe-network
-      - moheimageprocessor_default
     restart: unless-stopped
     deploy:
       resources:
@@ -55,11 +57,12 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+    depends_on:
+      - crawler
 
-  # Crawler service (MoheCrawler - Flask + Selenium)
   crawler:
     build: ../MoheCrawler
-    container_name: mohe-batch-crawler
+    container_name: mohe-batch-crawler-air
     ports:
       - "2000:2000"
     environment:
@@ -78,7 +81,3 @@ services:
 networks:
   mohe-network:
     driver: bridge
-  mohereact_mohe-network:
-    external: true
-  moheimageprocessor_default:
-    external: true

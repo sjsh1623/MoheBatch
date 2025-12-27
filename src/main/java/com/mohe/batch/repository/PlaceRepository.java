@@ -103,4 +103,23 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
      */
     @Query("SELECT COUNT(p) FROM Place p WHERE p.ready = true")
     long countEmbeddedPlaces();
+
+    // ===== Update 관련 쿼리 =====
+
+    /**
+     * 업데이트 대상 Place 조회 (crawler_found = false)
+     * - 워커별 분산 처리
+     * - 크롤링 대상과 동일 조건 (OpenAI 없이 메뉴/이미지/리뷰만 업데이트)
+     */
+    @Query(value = """
+        SELECT * FROM places p
+        WHERE p.crawler_found = false
+        AND MOD(p.id, :totalWorkers) = :workerId
+        ORDER BY p.id ASC
+    """, nativeQuery = true)
+    Page<Place> findByCrawlerFoundFalseAndIdModEquals(
+        @Param("workerId") int workerId,
+        @Param("totalWorkers") int totalWorkers,
+        Pageable pageable
+    );
 }

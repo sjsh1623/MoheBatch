@@ -34,17 +34,17 @@ public class CrawlingService {
             WebClient.Builder webClientBuilder,
             ObjectMapper objectMapper,
             @Value("${crawler.base-url:http://localhost:4000}") String baseUrl,
-            @Value("${crawler.timeout-minutes:30}") int timeoutMinutes) {
+            @Value("${crawler.timeout-minutes:2}") int timeoutMinutes) {
 
         log.info("CrawlingService initialized with baseUrl: {}, timeout: {} minutes", baseUrl, timeoutMinutes);
 
         HttpClient httpClient = HttpClient.create()
                 .responseTimeout(Duration.ofMinutes(timeoutMinutes))
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 180000)
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 30000)  // 연결 타임아웃 30초
                 .option(ChannelOption.SO_KEEPALIVE, true)
                 .doOnConnected(conn -> conn
                         .addHandlerLast(new ReadTimeoutHandler(timeoutMinutes * 60, TimeUnit.SECONDS))
-                        .addHandlerLast(new WriteTimeoutHandler(300, TimeUnit.SECONDS)));
+                        .addHandlerLast(new WriteTimeoutHandler(120, TimeUnit.SECONDS)));  // 쓰기 타임아웃 2분
 
         this.webClient = webClientBuilder
                 .baseUrl(baseUrl)
