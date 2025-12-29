@@ -52,10 +52,13 @@ public class Place {
 
     private Boolean petFriendly;
 
-    private Boolean ready;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "crawl_status")
+    private CrawlStatus crawlStatus = CrawlStatus.PENDING;
 
-    @Column(name = "crawler_found")
-    private Boolean crawlerFound;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "embed_status")
+    private EmbedStatus embedStatus = EmbedStatus.PENDING;
 
     private LocalDateTime createdAt;
 

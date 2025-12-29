@@ -67,14 +67,14 @@ public class UpdateReader implements ItemReader<Place> {
         try {
             PageRequest pageRequest = PageRequest.of(currentPage, pageSize, Sort.by("id").ascending());
 
-            // crawler_found=false인 장소 조회 (크롤링 대상과 동일)
-            Page<Place> page = placeRepository.findByCrawlerFoundFalseAndIdModEquals(
+            // crawl_status=PENDING인 장소 조회 (크롤링 대상)
+            Page<Place> page = placeRepository.findByCrawlStatusPendingAndIdModEquals(
                     workerId, totalWorkers, pageRequest
             );
 
             if (page.hasContent()) {
                 currentBatch = page.getContent().iterator();
-                log.info("🔄 [Worker {}] 업데이트 대상 로드: 페이지 {}, {}개 장소 (crawler_found=false)",
+                log.info("🔄 [Worker {}] 업데이트 대상 로드: 페이지 {}, {}개 장소 (crawl_status=PENDING)",
                         workerId, currentPage, page.getNumberOfElements());
                 currentPage++;
             } else {

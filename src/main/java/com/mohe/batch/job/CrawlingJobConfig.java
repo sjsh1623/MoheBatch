@@ -161,8 +161,8 @@ public class CrawlingJobConfig {
 
                 if (response == null || response.getData() == null) {
                     log.error("❌ 크롤링 실패 '{}' - 응답 없음", place.getName());
-                    place.setCrawlerFound(false);
-                    place.setReady(false);
+                    place.setCrawlStatus(CrawlStatus.FAILED);
+                    place.setEmbedStatus(EmbedStatus.PENDING);
                     return place;
                 }
 
@@ -204,8 +204,8 @@ public class CrawlingJobConfig {
 
                 if (textForKeywords == null || textForKeywords.trim().isEmpty()) {
                     log.warn("Lack of information for '{}' - no description text", place.getName());
-                    place.setCrawlerFound(true);
-                    place.setReady(false);
+                    place.setCrawlStatus(CrawlStatus.COMPLETED);
+                    place.setEmbedStatus(EmbedStatus.PENDING);
                     return place;
                 }
 
@@ -414,8 +414,8 @@ public class CrawlingJobConfig {
                     log.warn("⚠️ 메뉴 크롤링 실패 '{}': {}", place.getName(), e.getMessage());
                 }
 
-                place.setCrawlerFound(true);
-                place.setReady(false);
+                place.setCrawlStatus(CrawlStatus.COMPLETED);
+                place.setEmbedStatus(EmbedStatus.PENDING);
 
                 log.info("✅ ========== 크롤링 완료 ========== '{}' | 리뷰: {} | 이미지: {} | 메뉴: {}",
                         place.getName(), place.getReviewCount(), place.getImages().size(),
@@ -425,8 +425,8 @@ public class CrawlingJobConfig {
 
             } catch (Exception e) {
                 log.error("❌ 크롤링 실패 '{}': {}", place.getName(), e.getMessage());
-                place.setCrawlerFound(false);
-                place.setReady(false);
+                place.setCrawlStatus(CrawlStatus.FAILED);
+                place.setEmbedStatus(EmbedStatus.PENDING);
                 return place;
             }
         };
@@ -471,9 +471,9 @@ public class CrawlingJobConfig {
                     placeRepository.saveAndFlush(freshPlace);
                     savedCount++;
 
-                    log.info("Saved place '{}' (ID: {}, crawler_found={}, ready={})",
+                    log.info("Saved place '{}' (ID: {}, crawl_status={}, embed_status={})",
                             freshPlace.getName(), freshPlace.getId(),
-                            freshPlace.getCrawlerFound(), freshPlace.getReady());
+                            freshPlace.getCrawlStatus(), freshPlace.getEmbedStatus());
 
                 } catch (Exception e) {
                     log.error("Failed to save place ID {}: {}", place.getId(), e.getMessage());
@@ -504,8 +504,8 @@ public class CrawlingJobConfig {
         target.setKeyword(source.getKeyword());
         target.setParkingAvailable(source.getParkingAvailable());
         target.setPetFriendly(source.getPetFriendly());
-        target.setReady(source.getReady());
-        target.setCrawlerFound(source.getCrawlerFound());
+        target.setEmbedStatus(source.getEmbedStatus());
+        target.setCrawlStatus(source.getCrawlStatus());
 
         // 미리 복사해둔 컬렉션 데이터 사용
         if (descriptions != null) {

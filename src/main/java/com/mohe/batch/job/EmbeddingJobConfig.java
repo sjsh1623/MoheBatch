@@ -1,6 +1,7 @@
 package com.mohe.batch.job;
 
 import com.mohe.batch.dto.embedding.EmbeddingResponse;
+import com.mohe.batch.entity.EmbedStatus;
 import com.mohe.batch.entity.Place;
 import com.mohe.batch.entity.PlaceKeywordEmbedding;
 import com.mohe.batch.repository.PlaceKeywordEmbeddingRepository;
@@ -157,10 +158,10 @@ public class EmbeddingJobConfig {
 
                 log.info("Saved {} embeddings for '{}' (ID: {})", savedCount, place.getName(), place.getId());
 
-                // Mark place as ready
-                place.setReady(true);
+                // Mark place as embed_status=COMPLETED
+                place.setEmbedStatus(EmbedStatus.COMPLETED);
 
-                log.info("Successfully embedded '{}' (ID: {}) - Keywords: {}, ready=true",
+                log.info("Successfully embedded '{}' (ID: {}) - Keywords: {}, embed_status=COMPLETED",
                         place.getName(), place.getId(), String.join(", ", keywordsToProcess));
 
                 return place;

@@ -1,9 +1,11 @@
 package com.mohe.batch.service;
 
 import com.mohe.batch.dto.crawling.CrawledDataDto;
+import com.mohe.batch.dto.crawling.CrawlingResponse;
 import com.mohe.batch.dto.crawling.MenuDataDto;
 import com.mohe.batch.dto.crawling.MenuItemDto;
 import com.mohe.batch.entity.*;
+import com.mohe.batch.exception.PlaceNotFoundException;
 import com.mohe.batch.repository.PlaceRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +41,7 @@ public class UpdateProcessorService {
 
     /**
      * Place 업데이트 처리 (트랜잭션 내에서 실행)
+     * @throws PlaceNotFoundException 장소를 찾을 수 없는 경우 (404, 폐업 등) - 호출자가 삭제 처리
      */
     @Transactional
     public Place processUpdate(Long placeId, boolean updateMenus, boolean updateImages, boolean updateReviews) {
@@ -46,14 +49,23 @@ public class UpdateProcessorService {
         Place place = placeRepository.findById(placeId)
                 .orElseThrow(() -> new IllegalStateException("Place not found: " + placeId));
 
+        String searchQuery = place.getRoadAddress();
+        if (searchQuery == null || searchQuery.isEmpty()) {
+            searchQuery = place.getName();
+        }
+
+        log.info("🔄 ========== 업데이트 시작 ========== '{}' (ID: {})", place.getName(), place.getId());
+
+        // 먼저 장소가 크롤링 가능한지 확인 (이미지 크롤링으로 확인)
+        boolean placeExists = checkPlaceExists(place, searchQuery);
+
+        if (!placeExists) {
+            log.warn("⚠️ 장소를 찾을 수 없음 - NOT_FOUND 상태로 변경: '{}' (ID: {})", place.getName(), place.getId());
+            throw new PlaceNotFoundException(placeId, place.getName(),
+                    "Place not found during crawling - status will be set to NOT_FOUND");
+        }
+
         try {
-            String searchQuery = place.getRoadAddress();
-            if (searchQuery == null || searchQuery.isEmpty()) {
-                searchQuery = place.getName();
-            }
-
-            log.info("🔄 ========== 업데이트 시작 ========== '{}' (ID: {})", place.getName(), place.getId());
-
             // 이미지 업데이트
             if (updateImages) {
                 updatePlaceImages(place, searchQuery);
@@ -70,7 +82,7 @@ public class UpdateProcessorService {
             }
 
             // 처리 완료 표시
-            place.setCrawlerFound(true);
+            place.setCrawlStatus(CrawlStatus.COMPLETED);
 
             // 저장
             place = placeRepository.saveAndFlush(place);
@@ -83,10 +95,63 @@ public class UpdateProcessorService {
 
             return place;
 
+        } catch (PlaceNotFoundException e) {
+            throw e; // NOT_FOUND 상태로 변경될 예정
         } catch (Exception e) {
             log.error("❌ 업데이트 실패 '{}': {}", place.getName(), e.getMessage());
-            place.setCrawlerFound(false);
+            place.setCrawlStatus(CrawlStatus.FAILED);
             return placeRepository.saveAndFlush(place);
+        }
+    }
+
+    /**
+     * 장소가 크롤링 가능한지 확인 (404, 폐업 등 체크)
+     */
+    private boolean checkPlaceExists(Place place, String searchQuery) {
+        try {
+            var response = crawlingService.crawlPlaceData(searchQuery, place.getName()).block();
+
+            if (response == null) {
+                return false;
+            }
+
+            // success가 false이고 메시지에 특정 키워드가 있으면 장소 없음으로 판단
+            if (!response.isSuccess()) {
+                String message = response.getMessage() != null ? response.getMessage().toLowerCase() : "";
+                if (message.contains("not found") ||
+                    message.contains("404") ||
+                    message.contains("no results") ||
+                    message.contains("찾을 수 없") ||
+                    message.contains("존재하지 않") ||
+                    message.contains("closed") ||
+                    message.contains("폐업")) {
+                    return false;
+                }
+            }
+
+            // 데이터가 완전히 비어있으면 장소 없음으로 판단
+            if (response.getData() == null) {
+                return false;
+            }
+
+            CrawledDataDto data = response.getData();
+            boolean hasImages = data.getImageUrls() != null && !data.getImageUrls().isEmpty();
+            boolean hasReviews = data.getReviews() != null && !data.getReviews().isEmpty();
+            boolean hasBusinessHours = data.getBusinessHours() != null;
+
+            // 이미지도 없고 리뷰도 없고 영업시간도 없으면 장소 없음으로 판단
+            if (!hasImages && !hasReviews && !hasBusinessHours) {
+                log.info("⚠️ 장소 데이터가 비어있음: '{}' (images={}, reviews={}, hours={})",
+                        place.getName(), hasImages, hasReviews, hasBusinessHours);
+                return false;
+            }
+
+            return true;
+
+        } catch (Exception e) {
+            log.warn("⚠️ 장소 존재 확인 중 오류: '{}' - {}", place.getName(), e.getMessage());
+            // 오류 발생 시에는 일단 존재한다고 가정 (네트워크 오류 등)
+            return true;
         }
     }
 

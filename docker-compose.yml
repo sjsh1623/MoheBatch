@@ -1,4 +1,22 @@
 services:
+  # Redis for Message Queue
+  redis:
+    image: redis:7-alpine
+    container_name: mohe-batch-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    networks:
+      - mohe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   # Batch server - connects to external PostgreSQL from MoheSpring
   batch:
     build: .
@@ -15,6 +33,13 @@ services:
       DB_NAME: mohe_db
       DB_USERNAME: mohe_user
       DB_PASSWORD: mohe_password
+      # Redis for Queue
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      # Queue Worker settings
+      QUEUE_WORKER_ENABLED: "true"
+      QUEUE_WORKER_THREADS: 2
       # Crawler service
       CRAWLER_BASE_URL: http://crawler:2000
       CRAWLER_TIMEOUT_MINUTES: 2
@@ -42,6 +67,9 @@ services:
       - mohe-network
       - mohereact_mohe-network
       - moheimageprocessor_default
+    depends_on:
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     deploy:
       resources:
@@ -82,3 +110,6 @@ networks:
     external: true
   moheimageprocessor_default:
     external: true
+
+volumes:
+  redis_data:
