@@ -26,19 +26,25 @@ public class BatchController {
     private final Job crawlingJob;
     private final BatchStatusService batchStatusService;
     private final int totalWorkers;
+    private final int threadsPerWorker;
+    private final int chunkSize;
 
     public BatchController(
             JobLauncher jobLauncher,
             JobOperator jobOperator,
             Job crawlingJob,
             BatchStatusService batchStatusService,
-            @Value("${batch.worker.total-workers:3}") int totalWorkers
+            @Value("${batch.worker.total-workers:10}") int totalWorkers,
+            @Value("${batch.worker.threads-per-worker:1}") int threadsPerWorker,
+            @Value("${batch.chunk-size:10}") int chunkSize
     ) {
         this.jobLauncher = jobLauncher;
         this.jobOperator = jobOperator;
         this.crawlingJob = crawlingJob;
         this.batchStatusService = batchStatusService;
         this.totalWorkers = totalWorkers;
+        this.threadsPerWorker = threadsPerWorker;
+        this.chunkSize = chunkSize;
     }
 
     /**
@@ -285,5 +291,19 @@ public class BatchController {
         }
 
         return ResponseEntity.ok(ApiResponse.success(status.toMap()));
+    }
+
+    /**
+     * 서버 설정 조회 - 워커 수, 스레드 수, 청크 크기 등
+     */
+    @GetMapping("/config")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getConfig() {
+        Map<String, Object> config = new HashMap<>();
+        config.put("totalWorkers", totalWorkers);
+        config.put("maxWorkers", 10); // UI can support up to 10 workers
+        config.put("threadsPerWorker", threadsPerWorker);
+        config.put("chunkSize", chunkSize);
+
+        return ResponseEntity.ok(ApiResponse.success(config));
     }
 }

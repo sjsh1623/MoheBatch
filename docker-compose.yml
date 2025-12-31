@@ -45,9 +45,9 @@ services:
       CRAWLER_TIMEOUT_MINUTES: 2
       # OpenAI
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      # Batch worker settings (distributed across 2 machines)
-      # 총 5워커: 이 머신(0,1), 맥북에어(2,3,4)
-      BATCH_TOTAL_WORKERS: 5
+      # Batch worker settings (supports up to 10 workers)
+      # 워커를 추가할 때는 이 값만 변경하면 됩니다
+      BATCH_TOTAL_WORKERS: 10
       BATCH_THREADS_PER_WORKER: 1
       BATCH_CHUNK_SIZE: 2
       # Async pool settings (reduced for memory)
