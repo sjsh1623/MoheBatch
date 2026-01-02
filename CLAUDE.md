@@ -29,8 +29,10 @@ MoheBatch is a standalone Spring Batch server for processing place data from Moh
 ```
 
 ### Docker Development
+
+**메인 서버에서 실행 (모든 서비스 로컬):**
 ```bash
-# Start batch server with crawler
+# Start batch server with crawler and Redis
 docker compose up --build
 
 # Start in background
@@ -41,6 +43,19 @@ docker compose logs -f batch
 
 # Stop all services
 docker compose down
+```
+
+**외부 서버에서 실행 (메인 서버의 Redis/DB/Embedding 사용):**
+```bash
+# 1. 환경 설정 파일 준비
+cp .env.external.example .env
+# .env 파일에서 EMBEDDING_SERVICE_URL 등 설정
+
+# 2. 외부 서버용 docker-compose로 실행
+docker compose -f docker-compose.external.yml up --build
+
+# 3. 로그 확인
+docker compose -f docker-compose.external.yml logs -f batch
 ```
 
 ### Application URLs
@@ -200,3 +215,84 @@ Uses Spring Batch's AsyncItemProcessor for parallel processing within each worke
 
 ### Graceful Shutdown
 Use `/api/batch/stop-all` endpoint for graceful shutdown. Workers complete current chunk before stopping.
+
+## External Server Deployment
+
+### Architecture
+```
+┌─────────────────────────────────────────────────────────────┐
+│  외부 서버 (Batch 실행)                                      │
+│  ┌─────────────┐  ┌─────────────┐                           │
+│  │  MoheBatch  │  │ MoheCrawler │                           │
+│  │   :8081     │  │   :2000     │                           │
+│  └──────┬──────┘  └─────────────┘                           │
+└─────────│───────────────────────────────────────────────────┘
+          │
+          ▼
+┌─────────────────────────────────────────────────────────────┐
+│  메인 서버 (100.99.236.50)                                   │
+│  ┌──────────┐  ┌──────────┐  ┌───────────────┐              │
+│  │ Postgres │  │  Redis   │  │ ImageProcessor│              │
+│  │  :16239  │  │  :6380   │  │    :5200      │              │
+│  └──────────┘  └──────────┘  └───────────────┘              │
+└─────────────────────────────────────────────────────────────┘
+          │
+          ▼
+┌─────────────────────────────────────────────────────────────┐
+│  GPU 서버 (임베딩 서비스)                                     │
+│  ┌───────────────────────┐                                   │
+│  │  Embedding Service    │                                   │
+│  │  (Kanana 2.1B)        │                                   │
+│  │       :6000           │                                   │
+│  └───────────────────────┘                                   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Configuration Files
+
+| 파일 | 용도 |
+|------|------|
+| `docker-compose.yml` | 메인 서버용 (Redis 포함) |
+| `docker-compose.external.yml` | 외부 서버용 (Redis 없음, 메인 서버 연결) |
+| `.env.example` | 기본 환경 설정 템플릿 |
+| `.env.external.example` | 외부 서버용 환경 설정 템플릿 |
+
+### Required Environment Variables (External Server)
+
+| Variable | Example | Description |
+|----------|---------|-------------|
+| `MAIN_SERVER_IP` | 100.99.236.50 | 메인 서버 IP (DB, Redis) |
+| `OPENAI_API_KEY` | sk-xxx | OpenAI API 키 |
+| `EMBEDDING_SERVICE_URL` | http://gpu-server:6000 | 임베딩 서비스 URL |
+
+## Embedding Batch Details
+
+### Processing Flow
+```
+1. EmbeddingReader: crawl_status=COMPLETED AND embed_status=PENDING 조회
+2. EmbeddingProcessor:
+   - Place에서 키워드 추출 (최대 9개)
+   - EmbeddingClient로 벡터 생성
+   - PlaceKeywordEmbedding 엔티티 저장
+   - embed_status → COMPLETED 변경
+3. EmbeddingWriter: DB 저장
+```
+
+### Embedding Service Requirements
+- 모델: Kanana Nano 2.1B (kakaocorp/kanana-nano-2.1b-embedding)
+- 벡터 차원: 1792
+- API: `/embed` (POST, OpenAI 호환)
+- 헬스체크: `/health` (GET)
+
+### Monitoring Embedding Progress
+```bash
+# 임베딩 상태 확인
+curl http://localhost:8081/api/batch/embedding/status
+
+# 임베딩 서비스 헬스 체크
+curl http://localhost:8081/api/batch/embedding/health
+
+# DB에서 직접 확인
+docker exec mohe-postgres psql -U mohe_user -d mohe_db -c \
+  "SELECT embed_status, COUNT(*) FROM places GROUP BY embed_status;"
+```

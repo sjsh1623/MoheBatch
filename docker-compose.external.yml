@@ -1,0 +1,108 @@
+# docker-compose.external.yml
+# 외부 서버에서 배치를 실행할 때 사용
+# 메인 서버(100.99.236.50)의 Redis, DB, Embedding 서비스를 사용
+#
+# 사용법:
+#   docker compose -f docker-compose.external.yml up --build
+#
+# 필수 환경변수 (.env 파일에 설정):
+#   - OPENAI_API_KEY: OpenAI API 키
+#   - EMBEDDING_SERVICE_URL: 임베딩 서비스 URL (예: http://임베딩서버IP:6000)
+#   - MAIN_SERVER_IP: 메인 서버 IP (기본: 100.99.236.50)
+
+services:
+  # Batch server - 외부 서비스 연결
+  batch:
+    build: .
+    container_name: mohe-batch
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      # JVM Memory Limit (OOM Prevention)
+      JAVA_OPTS: "-Xmx768m -Xms256m -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
+      # Database - 메인 서버 PostgreSQL
+      DB_HOST: ${MAIN_SERVER_IP:-100.99.236.50}
+      DB_PORT: 16239
+      DB_NAME: mohe_db
+      DB_USERNAME: mohe_user
+      DB_PASSWORD: mohe_password
+      # Redis - 메인 서버 Redis (로컬 Redis 사용 안함)
+      REDIS_HOST: ${MAIN_SERVER_IP:-100.99.236.50}
+      REDIS_PORT: 6380
+      REDIS_PASSWORD: ""
+      # Queue Worker settings
+      QUEUE_WORKER_ENABLED: "true"
+      QUEUE_WORKER_THREADS: 2
+      # Crawler service - 로컬 크롤러 사용
+      CRAWLER_BASE_URL: http://crawler:2000
+      CRAWLER_TIMEOUT_MINUTES: 2
+      # OpenAI
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # Batch worker settings
+      BATCH_TOTAL_WORKERS: ${BATCH_TOTAL_WORKERS:-10}
+      BATCH_THREADS_PER_WORKER: ${BATCH_THREADS_PER_WORKER:-1}
+      BATCH_CHUNK_SIZE: ${BATCH_CHUNK_SIZE:-2}
+      # Async pool settings
+      BATCH_ASYNC_CORE_POOL_SIZE: ${BATCH_ASYNC_CORE_POOL_SIZE:-1}
+      BATCH_ASYNC_MAX_POOL_SIZE: ${BATCH_ASYNC_MAX_POOL_SIZE:-2}
+      BATCH_ASYNC_QUEUE_CAPACITY: ${BATCH_ASYNC_QUEUE_CAPACITY:-10}
+      # Image storage
+      IMAGE_STORAGE_PATH: /app/images
+      # Image Processor - 메인 서버
+      IMAGE_PROCESSOR_URL: http://${MAIN_SERVER_IP:-100.99.236.50}:5200
+      # Embedding service - 별도 서버 (필수 설정!)
+      EMBEDDING_SERVICE_URL: ${EMBEDDING_SERVICE_URL:-http://localhost:6000}
+      # Embedding batch settings
+      BATCH_EMBEDDING_CHUNK_SIZE: ${BATCH_EMBEDDING_CHUNK_SIZE:-5}
+    volumes:
+      # 이미지 저장 디렉토리 (호스트 경로에 맞게 수정 필요)
+      - ${IMAGE_STORAGE_PATH:-./images}:/app/images
+    networks:
+      - mohe-batch-network
+    depends_on:
+      crawler:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Crawler service (MoheCrawler - Flask + Selenium)
+  crawler:
+    build: ../MoheCrawler
+    container_name: mohe-batch-crawler
+    init: true
+    ports:
+      - "2000:2000"
+    environment:
+      FLASK_ENV: production
+      PYTHONUNBUFFERED: 1
+      PORT: 2000
+    networks:
+      - mohe-batch-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+        reservations:
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  mohe-batch-network:
+    driver: bridge
