@@ -12,10 +12,12 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.net.InetAddress;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -33,10 +35,35 @@ public class QueueMonitorService {
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper redisObjectMapper;
 
+    private String cachedHostname = null;
+
     /**
-     * 큐 통계 조회
+     * 현재 서버의 hostname 조회
+     */
+    public String getCurrentHostname() {
+        if (cachedHostname == null) {
+            try {
+                cachedHostname = InetAddress.getLocalHost().getHostName();
+            } catch (Exception e) {
+                log.warn("Failed to get hostname: {}", e.getMessage());
+                cachedHostname = "unknown";
+            }
+        }
+        return cachedHostname;
+    }
+
+    /**
+     * 큐 통계 조회 (전체 워커)
      */
     public QueueStats getQueueStats() {
+        return getQueueStats(false);
+    }
+
+    /**
+     * 큐 통계 조회
+     * @param localOnly true이면 현재 서버의 워커만 반환
+     */
+    public QueueStats getQueueStats(boolean localOnly) {
         QueueStats stats = new QueueStats();
 
         Long pendingSize = redisTemplate.opsForList().size(PENDING_QUEUE);
@@ -52,7 +79,7 @@ public class QueueMonitorService {
         stats.setFailedCount(failedSize != null ? failedSize : 0);
         stats.setLastUpdated(LocalDateTime.now());
 
-        Map<String, WorkerInfo> workers = getActiveWorkers();
+        Map<String, WorkerInfo> workers = localOnly ? getLocalWorkers() : getActiveWorkers();
         stats.setWorkers(workers);
         stats.setTotalWorkers(workers.size());
         stats.setActiveWorkers((int) workers.values().stream()
@@ -63,7 +90,7 @@ public class QueueMonitorService {
     }
 
     /**
-     * 활성 워커 조회
+     * 활성 워커 조회 (전체)
      */
     public Map<String, WorkerInfo> getActiveWorkers() {
         Map<Object, Object> entries = redisTemplate.opsForHash().entries(WORKER_REGISTRY);
@@ -82,6 +109,18 @@ public class QueueMonitorService {
         }
 
         return workers;
+    }
+
+    /**
+     * 현재 서버의 워커만 조회 (hostname 기반 필터링)
+     */
+    public Map<String, WorkerInfo> getLocalWorkers() {
+        String currentHostname = getCurrentHostname();
+        Map<String, WorkerInfo> allWorkers = getActiveWorkers();
+
+        return allWorkers.entrySet().stream()
+                .filter(entry -> currentHostname.equals(entry.getValue().getHostname()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     /**

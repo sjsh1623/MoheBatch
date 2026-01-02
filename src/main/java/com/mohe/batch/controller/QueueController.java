@@ -91,8 +91,10 @@ public class QueueController {
 
     @GetMapping("/stats")
     @Operation(summary = "큐 통계 및 워커 상태 조회")
-    public ResponseEntity<ApiResponse<QueueStats>> getStats() {
-        QueueStats stats = monitorService.getQueueStats();
+    public ResponseEntity<ApiResponse<QueueStats>> getStats(
+            @RequestParam(defaultValue = "true") boolean localOnly
+    ) {
+        QueueStats stats = monitorService.getQueueStats(localOnly);
         return ResponseEntity.ok(ApiResponse.success(stats));
     }
 
@@ -108,8 +110,12 @@ public class QueueController {
 
     @GetMapping("/workers")
     @Operation(summary = "활성 워커 목록 조회")
-    public ResponseEntity<ApiResponse<Map<String, WorkerInfo>>> getWorkers() {
-        Map<String, WorkerInfo> workers = monitorService.getActiveWorkers();
+    public ResponseEntity<ApiResponse<Map<String, WorkerInfo>>> getWorkers(
+            @RequestParam(defaultValue = "true") boolean localOnly
+    ) {
+        Map<String, WorkerInfo> workers = localOnly
+                ? monitorService.getLocalWorkers()
+                : monitorService.getActiveWorkers();
         return ResponseEntity.ok(ApiResponse.success(workers));
     }
 
