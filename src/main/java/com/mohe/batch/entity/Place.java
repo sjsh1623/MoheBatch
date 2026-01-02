@@ -60,6 +60,10 @@ public class Place {
     @Column(name = "embed_status")
     private EmbedStatus embedStatus = EmbedStatus.PENDING;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "menu_embed_status")
+    private EmbedStatus menuEmbedStatus = EmbedStatus.PENDING;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;

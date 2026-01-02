@@ -7,7 +7,8 @@ services:
       - "6380:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    # stop-writes-on-bgsave-error no: RDB 저장 실패해도 쓰기 차단하지 않음 (fork 메모리 부족 대응)
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru --stop-writes-on-bgsave-error no
     networks:
       - mohe-network
     restart: unless-stopped
@@ -88,6 +89,9 @@ services:
   crawler:
     build: ../MoheCrawler
     container_name: mohe-batch-crawler
+    # init: true - tini를 PID 1로 실행하여 좀비 프로세스(Chrome) 자동 정리
+    # 주의: 이 설정은 컨테이너 재시작 시에만 적용됨, 실행 중인 크롤러에 영향 없음
+    init: true
     ports:
       - "2000:2000"
     environment:
@@ -97,6 +101,12 @@ services:
     networks:
       - mohe-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+        reservations:
+          memory: 512M
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:2000/health"]
       interval: 30s

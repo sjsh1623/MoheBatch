@@ -141,4 +141,73 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
      */
     long countByCrawlStatus(CrawlStatus status);
     long countByEmbedStatus(EmbedStatus status);
+
+    // ===== Menu Embedding 관련 쿼리 =====
+
+    /**
+     * 메뉴 임베딩 대상 Place ID 조회
+     * - crawl_status = COMPLETED (크롤링 완료)
+     * - menu_embed_status = PENDING (아직 메뉴 임베딩 안 됨)
+     * - 메뉴가 있는 장소만
+     * - ORDER BY id ASC (순서대로 처리)
+     */
+    @Query(value = """
+        SELECT DISTINCT p.id FROM places p
+        INNER JOIN place_menus pm ON pm.place_id = p.id
+        WHERE p.crawl_status = 'COMPLETED'
+        AND (p.menu_embed_status = 'PENDING' OR p.menu_embed_status IS NULL)
+        ORDER BY p.id ASC
+    """, nativeQuery = true)
+    Page<Long> findPlaceIdsForMenuEmbedding(Pageable pageable);
+
+    /**
+     * 메뉴 임베딩 대기 중인 Place 수 조회
+     */
+    @Query(value = """
+        SELECT COUNT(DISTINCT p.id) FROM places p
+        INNER JOIN place_menus pm ON pm.place_id = p.id
+        WHERE p.crawl_status = 'COMPLETED'
+        AND (p.menu_embed_status = 'PENDING' OR p.menu_embed_status IS NULL)
+    """, nativeQuery = true)
+    long countPlacesForMenuEmbedding();
+
+    /**
+     * 메뉴 임베딩용 Place 조회 (메뉴 포함)
+     */
+    @Query("SELECT p FROM Place p LEFT JOIN FETCH p.menus WHERE p.id = :id")
+    Optional<Place> findByIdForMenuEmbedding(@Param("id") Long id);
+
+    /**
+     * 메뉴 임베딩 완료된 Place 수 조회
+     */
+    @Query("SELECT COUNT(p) FROM Place p WHERE p.menuEmbedStatus = 'COMPLETED'")
+    long countMenuEmbeddedPlaces();
+
+    /**
+     * 키워드와 메뉴 모두 임베딩 대기 중인 Place ID 조회
+     */
+    @Query(value = """
+        SELECT DISTINCT p.id FROM places p
+        WHERE p.crawl_status = 'COMPLETED'
+        AND (p.embed_status = 'PENDING' OR p.menu_embed_status = 'PENDING' OR p.menu_embed_status IS NULL)
+        ORDER BY p.id ASC
+    """, nativeQuery = true)
+    Page<Long> findPlaceIdsForAllEmbedding(Pageable pageable);
+
+    /**
+     * 키워드와 메뉴 모두 임베딩 대기 중인 Place 수 조회
+     */
+    @Query(value = """
+        SELECT COUNT(DISTINCT p.id) FROM places p
+        WHERE p.crawl_status = 'COMPLETED'
+        AND (p.embed_status = 'PENDING' OR p.menu_embed_status = 'PENDING' OR p.menu_embed_status IS NULL)
+    """, nativeQuery = true)
+    long countPlacesForAllEmbedding();
+
+    /**
+     * 전체 임베딩용 Place 조회 (키워드 + 메뉴 포함)
+     */
+    @EntityGraph(attributePaths = {"menus"})
+    @Query("SELECT p FROM Place p LEFT JOIN FETCH p.keyword WHERE p.id = :id")
+    Optional<Place> findByIdForAllEmbedding(@Param("id") Long id);
 }
