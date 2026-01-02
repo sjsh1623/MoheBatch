@@ -68,6 +68,7 @@ services:
       - mohe-network
       - mohereact_mohe-network
       - moheimageprocessor_default
+      - mohespring_mohe-network
     depends_on:
       redis:
         condition: service_healthy
@@ -119,6 +120,8 @@ networks:
   mohereact_mohe-network:
     external: true
   moheimageprocessor_default:
+    external: true
+  mohespring_mohe-network:
     external: true
 
 volumes:
