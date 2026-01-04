@@ -210,4 +210,48 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
     @EntityGraph(attributePaths = {"menus"})
     @Query("SELECT p FROM Place p LEFT JOIN FETCH p.keyword WHERE p.id = :id")
     Optional<Place> findByIdForAllEmbedding(@Param("id") Long id);
+
+    // ===== Description Only 배치 관련 쿼리 =====
+
+    /**
+     * Description 생성 대상 Place ID 조회
+     * - crawl_status = COMPLETED (크롤링 완료)
+     * - mohe_description이 없거나 빈 값
+     * - 리뷰가 있는 장소만
+     */
+    @Query(value = """
+        SELECT DISTINCT p.id FROM places p
+        INNER JOIN place_reviews pr ON pr.place_id = p.id
+        LEFT JOIN place_descriptions pd ON pd.place_id = p.id
+        WHERE p.crawl_status = 'COMPLETED'
+        AND (pd.mohe_description IS NULL OR pd.mohe_description = '' OR TRIM(pd.mohe_description) = '')
+        ORDER BY p.id ASC
+    """, nativeQuery = true)
+    Page<Long> findPlaceIdsForDescriptionGeneration(Pageable pageable);
+
+    /**
+     * Description 생성 대상 Place 수 조회
+     */
+    @Query(value = """
+        SELECT COUNT(DISTINCT p.id) FROM places p
+        INNER JOIN place_reviews pr ON pr.place_id = p.id
+        LEFT JOIN place_descriptions pd ON pd.place_id = p.id
+        WHERE p.crawl_status = 'COMPLETED'
+        AND (pd.mohe_description IS NULL OR pd.mohe_description = '' OR TRIM(pd.mohe_description) = '')
+    """, nativeQuery = true)
+    long countPlacesForDescriptionGeneration();
+
+    /**
+     * Description 생성용 Place 조회 (리뷰 포함)
+     */
+    @EntityGraph(attributePaths = {"reviews", "descriptions"})
+    @Query("SELECT p FROM Place p WHERE p.id = :id")
+    Optional<Place> findByIdWithReviews(@Param("id") Long id);
+
+    /**
+     * Description 포함 Place 조회
+     */
+    @EntityGraph(attributePaths = {"descriptions"})
+    @Query("SELECT p FROM Place p WHERE p.id = :id")
+    Optional<Place> findByIdWithDescriptions(@Param("id") Long id);
 }
