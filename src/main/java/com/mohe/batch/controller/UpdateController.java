@@ -27,17 +27,20 @@ public class UpdateController {
 
     private final JobLauncher jobLauncher;
     private final Job updateJob;
+    private final Job descriptionOnlyJob;
     private final BatchStatusService batchStatusService;
     private final int totalWorkers;
 
     public UpdateController(
             JobLauncher jobLauncher,
             @Qualifier("updateJob") Job updateJob,
+            @Qualifier("descriptionOnlyJob") Job descriptionOnlyJob,
             BatchStatusService batchStatusService,
             @Value("${batch.worker.total-workers:3}") int totalWorkers
     ) {
         this.jobLauncher = jobLauncher;
         this.updateJob = updateJob;
+        this.descriptionOnlyJob = descriptionOnlyJob;
         this.batchStatusService = batchStatusService;
         this.totalWorkers = totalWorkers;
     }
@@ -64,6 +67,71 @@ public class UpdateController {
     @PostMapping("/start-all")
     public ResponseEntity<ApiResponse<Map<String, Object>>> startAllUpdates() {
         return startUpdate("all", true, true, true);
+    }
+
+    /**
+     * 업데이트 + Description 생성 동시 실행
+     * POST /batch/update/with-description
+     */
+    @PostMapping("/with-description")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> startUpdateWithDescription() {
+        log.info("🔄 업데이트 + Description 생성 요청");
+
+        Map<String, Object> results = new HashMap<>();
+        List<Map<String, Object>> updateStarted = new ArrayList<>();
+        List<Map<String, Object>> failed = new ArrayList<>();
+
+        // 1. 업데이트 작업 시작 (모든 워커)
+        for (int workerId = 0; workerId < totalWorkers; workerId++) {
+            try {
+                JobParameters jobParameters = new JobParametersBuilder()
+                        .addLong("workerId", (long) workerId)
+                        .addLong("totalWorkers", (long) totalWorkers)
+                        .addString("updateType", "all")
+                        .addString("updateMenus", "true")
+                        .addString("updateImages", "true")
+                        .addString("updateReviews", "true")
+                        .addString("startTime", LocalDateTime.now().toString())
+                        .toJobParameters();
+
+                JobExecution execution = jobLauncher.run(updateJob, jobParameters);
+
+                Map<String, Object> info = new HashMap<>();
+                info.put("workerId", workerId);
+                info.put("jobExecutionId", execution.getId());
+                info.put("status", execution.getStatus().toString());
+                updateStarted.add(info);
+            } catch (Exception e) {
+                Map<String, Object> failInfo = new HashMap<>();
+                failInfo.put("workerId", workerId);
+                failInfo.put("reason", e.getMessage());
+                failed.add(failInfo);
+            }
+        }
+
+        // 2. Description 생성 작업 시작
+        Map<String, Object> descriptionResult = new HashMap<>();
+        try {
+            JobParameters descParams = new JobParametersBuilder()
+                    .addString("startTime", LocalDateTime.now().toString())
+                    .addLong("targetCount", 0L)
+                    .toJobParameters();
+
+            JobExecution descExecution = jobLauncher.run(descriptionOnlyJob, descParams);
+            descriptionResult.put("jobExecutionId", descExecution.getId());
+            descriptionResult.put("status", descExecution.getStatus().toString());
+        } catch (Exception e) {
+            descriptionResult.put("error", e.getMessage());
+            log.warn("⚠️ Description 배치 시작 실패: {}", e.getMessage());
+        }
+
+        results.put("updateWorkers", updateStarted);
+        results.put("description", descriptionResult);
+        results.put("failed", failed);
+
+        log.info("🚀 업데이트+Description 시작: update={}/{} workers, description={}",
+                updateStarted.size(), totalWorkers, descriptionResult.get("status"));
+        return ResponseEntity.ok(ApiResponse.success(results));
     }
 
     /**

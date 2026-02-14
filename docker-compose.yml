@@ -63,7 +63,7 @@ services:
       EMBEDDING_SERVICE_URL: ${EMBEDDING_SERVICE_URL:-http://100.99.236.50:6000}
     volumes:
       # 호스트의 /Mohe/images 디렉토리를 컨테이너에 마운트
-      - /Users/andrewlim/Desktop/Mohe/images:/app/images
+      - /Volumes/Andrew/images:/app/images
     networks:
       - mohe-network
       - mohereact_mohe-network
@@ -99,6 +99,14 @@ services:
       FLASK_ENV: production
       PYTHONUNBUFFERED: 1
       PORT: 2000
+      # DB connection for discover endpoint
+      DB_HOST: 100.99.236.50
+      DB_PORT: 16239
+      DB_NAME: mohe_db
+      DB_USER: mohe_user
+      DB_PASSWORD: mohe_password
+      # Kakao API for discover endpoint
+      KAKAO_REST_API_KEY: b8450cd2ff9b9d58e203a5a42f654d5a
     networks:
       - mohe-network
     restart: unless-stopped
