@@ -1,6 +1,6 @@
 # docker-compose.external.yml
 # 외부 서버에서 배치를 실행할 때 사용
-# 메인 서버(100.99.236.50)의 Redis, DB, Embedding 서비스를 사용
+# 메인 서버(your_server_ip)의 Redis, DB, Embedding 서비스를 사용
 #
 # 사용법:
 #   docker compose -f docker-compose.external.yml up --build
@@ -8,7 +8,7 @@
 # 필수 환경변수 (.env 파일에 설정):
 #   - OPENAI_API_KEY: OpenAI API 키
 #   - EMBEDDING_SERVICE_URL: 임베딩 서비스 URL (예: http://임베딩서버IP:6000)
-#   - MAIN_SERVER_IP: 메인 서버 IP (기본: 100.99.236.50)
+#   - MAIN_SERVER_IP: 메인 서버 IP (기본: your_server_ip)
 
 services:
   # Batch server - 외부 서비스 연결
@@ -22,13 +22,13 @@ services:
       # JVM Memory Limit (OOM Prevention)
       JAVA_OPTS: "-Xmx768m -Xms256m -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
       # Database - 메인 서버 PostgreSQL
-      DB_HOST: ${MAIN_SERVER_IP:-100.99.236.50}
+      DB_HOST: ${MAIN_SERVER_IP:-your_server_ip}
       DB_PORT: 16239
       DB_NAME: mohe_db
-      DB_USERNAME: mohe_user
-      DB_PASSWORD: mohe_password
+      DB_USERNAME: ${DB_USERNAME:-mohe_user}
+      DB_PASSWORD: ${DB_PASSWORD}
       # Redis - 메인 서버 Redis (로컬 Redis 사용 안함)
-      REDIS_HOST: ${MAIN_SERVER_IP:-100.99.236.50}
+      REDIS_HOST: ${MAIN_SERVER_IP:-your_server_ip}
       REDIS_PORT: 6380
       REDIS_PASSWORD: ""
       # Queue Worker settings
@@ -50,7 +50,7 @@ services:
       # Image storage
       IMAGE_STORAGE_PATH: /app/images
       # Image Processor - 메인 서버
-      IMAGE_PROCESSOR_URL: http://${MAIN_SERVER_IP:-100.99.236.50}:5200
+      IMAGE_PROCESSOR_URL: http://${MAIN_SERVER_IP:-your_server_ip}:5200
       # Embedding service - 별도 서버 (필수 설정!)
       EMBEDDING_SERVICE_URL: ${EMBEDDING_SERVICE_URL:-http://localhost:6000}
       # Embedding batch settings

@@ -2,10 +2,12 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: mohe-postgres-dev
+    env_file:
+      - .env
     environment:
-      POSTGRES_DB: mohe_db
-      POSTGRES_USER: mohe_user
-      POSTGRES_PASSWORD: mohe_password
+      POSTGRES_DB: ${DB_NAME:-mohe_db}
+      POSTGRES_USER: ${DB_USERNAME:-mohe_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
       - "5433:5432"
     volumes:
@@ -28,15 +30,17 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    env_file:
+      - .env
     environment:
       SPRING_PROFILES_ACTIVE: docker
       # Database configuration - explicit override
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/mohe_db
-      SPRING_DATASOURCE_USERNAME: mohe_user
-      SPRING_DATASOURCE_PASSWORD: mohe_password
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-mohe_db}
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-mohe_user}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
       SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
-      DB_USERNAME: mohe_user
-      DB_PASSWORD: mohe_password
+      DB_USERNAME: ${DB_USERNAME:-mohe_user}
+      DB_PASSWORD: ${DB_PASSWORD}
       # JPA configuration for development
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_JPA_SHOW_SQL: true
@@ -48,13 +52,13 @@ services:
       MAIL_SMTP_AUTH: false
       MAIL_SMTP_STARTTLS: false
       # JWT Configuration
-      JWT_SECRET: mySecretKey12345678901234567890123456789012345678901234567890
+      JWT_SECRET: ${JWT_SECRET}
       # API Keys (empty for development)
-      NAVER_CLIENT_ID: ""
-      NAVER_CLIENT_SECRET: ""
-      GOOGLE_PLACES_API_KEY: ""
-      OPENAI_API_KEY: ""
-      GEMINI_API_KEY: ""
+      NAVER_CLIENT_ID: ${NAVER_CLIENT_ID:-}
+      NAVER_CLIENT_SECRET: ${NAVER_CLIENT_SECRET:-}
+      GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     volumes:
       - .:/app
       - /app/build

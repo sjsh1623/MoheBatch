@@ -24,16 +24,18 @@ services:
     container_name: mohe-batch
     ports:
       - "8081:8081"
+    env_file:
+      - .env
     environment:
       SPRING_PROFILES_ACTIVE: docker
       # JVM Memory Limit (OOM Prevention)
       JAVA_OPTS: "-Xmx768m -Xms256m -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
       # Database (same as MoheSpring)
-      DB_HOST: 100.99.236.50
-      DB_PORT: 16239
-      DB_NAME: mohe_db
-      DB_USERNAME: mohe_user
-      DB_PASSWORD: mohe_password
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT:-16239}
+      DB_NAME: ${DB_NAME:-mohe_db}
+      DB_USERNAME: ${DB_USERNAME:-mohe_user}
+      DB_PASSWORD: ${DB_PASSWORD}
       # Redis for Queue
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -60,7 +62,7 @@ services:
       # Image Processor service
       IMAGE_PROCESSOR_URL: http://app:5200
       # Embedding service
-      EMBEDDING_SERVICE_URL: ${EMBEDDING_SERVICE_URL:-http://100.99.236.50:6000}
+      EMBEDDING_SERVICE_URL: ${EMBEDDING_SERVICE_URL}
     volumes:
       # 호스트의 /Mohe/images 디렉토리를 컨테이너에 마운트
       - /Volumes/Andrew/images:/app/images
@@ -100,13 +102,13 @@ services:
       PYTHONUNBUFFERED: 1
       PORT: 2000
       # DB connection for discover endpoint
-      DB_HOST: 100.99.236.50
-      DB_PORT: 16239
-      DB_NAME: mohe_db
-      DB_USER: mohe_user
-      DB_PASSWORD: mohe_password
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT:-16239}
+      DB_NAME: ${DB_NAME:-mohe_db}
+      DB_USER: ${DB_USERNAME:-mohe_user}
+      DB_PASSWORD: ${DB_PASSWORD}
       # Kakao API for discover endpoint
-      KAKAO_REST_API_KEY: b8450cd2ff9b9d58e203a5a42f654d5a
+      KAKAO_REST_API_KEY: ${KAKAO_REST_API_KEY:-}
     networks:
       - mohe-network
     restart: unless-stopped
