@@ -1,200 +1,155 @@
-# MOHE Spring Boot API
+# MoheBatch
 
-A comprehensive Spring Boot application built with Kotlin, providing REST APIs for the MOHE place recommendation mobile application.
+> Spring Batch 기반 장소 데이터 크롤링/보강/임베딩 서버
 
-## 🚀 Features
+## 기술 스택
 
-### Authentication & Security
-- ✅ JWT-based authentication with access/refresh tokens
-- ✅ Email verification with OTP
-- ✅ Password reset functionality
-- ✅ Spring Security configuration
-- ✅ Role-based access control
+- **Framework**: Spring Boot 3.2.0, Java 21, Spring Batch 5.x
+- **Database**: PostgreSQL + pgvector (MoheSpring과 공유)
+- **Queue**: Redis (작업 큐, 워커 관리, 통계)
+- **Processing**: AsyncItemProcessor (5~20 스레드 병렬)
 
-### Core Functionality
-- ✅ User management and preferences
-- ✅ Place recommendations based on MBTI and preferences
-- ✅ Place search with contextual filters (weather, time)
-- ✅ Bookmark system
-- ✅ Recent view tracking
-- ✅ Place details with comprehensive data
-
-### Technical Stack
-- **Framework**: Spring Boot 3.2.0
-- **Language**: Kotlin 1.9.20
-- **Database**: PostgreSQL with HikariCP connection pooling
-- **Security**: Spring Security + JWT
-- **Email**: Spring Mail
-- **Testing**: JUnit 5 + H2 for tests
-- **Build**: Gradle with Kotlin DSL
-
-## 📁 Project Structure
-
-```
-src/main/kotlin/com/mohe/spring/
-├── config/         # Spring configuration
-├── controller/     # REST controllers
-├── dto/           # Data transfer objects
-├── entity/        # JPA entities
-├── exception/     # Global exception handling
-├── repository/    # Data access layer
-├── security/      # JWT & authentication
-└── service/       # Business logic
-```
-
-## 🔗 API Endpoints
-
-### Authentication (`/api/auth`)
-- `POST /login` - User login
-- `POST /signup` - User registration 
-- `POST /verify-email` - OTP verification
-- `POST /check-nickname` - Nickname availability
-- `POST /setup-password` - Complete registration
-- `POST /refresh` - Token refresh
-- `POST /logout` - User logout
-- `POST /forgot-password` - Password reset request
-- `POST /reset-password` - Reset password
-
-### User Management (`/api/user`)
-- `GET /profile` - Get user profile
-- `PUT /profile` - Update profile
-- `PUT /preferences` - Set user preferences
-- `GET /recent-places` - Recent viewed places
-- `GET /my-places` - User contributed places
-
-### Places (`/api/places`)
-- `GET /recommendations` - Personalized recommendations
-- `GET /` - List places with pagination
-- `GET /{id}` - Place details
-- `GET /search` - Search places with filters
-
-### Bookmarks (`/api/bookmarks`)
-- `POST /toggle` - Add/remove bookmark
-- `GET /` - Get user bookmarks
-
-## 🐳 Docker Setup
-
-### Database Schema
-The application automatically initializes the PostgreSQL database with:
-- User management tables
-- Place data with comprehensive attributes
-- Bookmark and activity tracking
-- JWT token storage
-- Email verification system
-
-### Running with Docker
+## 시작하기
 
 ```bash
-# Build and start services
+# Docker로 실행 (Redis + Batch + Crawler 포함)
 docker compose up --build
 
-# Services:
-# - PostgreSQL: localhost:5432
-# - Spring App: localhost:8080
-# - Health Check: http://localhost:8080/health
-# - Swagger UI: http://localhost:8080/swagger-ui.html
+# 외부 서버 실행 (메인 서버의 Redis/DB 사용)
+docker compose -f docker-compose.external.yml up --build
+
+# 로컬 실행
+./gradlew bootRun
 ```
 
-## 🧪 Testing
+### 환경 변수 (.env)
 
 ```bash
-# Run tests
-./gradlew test
-
-# Build application  
-./gradlew build
+DB_HOST=mohe-postgres
+DB_PORT=16239
+DB_PASSWORD=your_password
+OPENAI_API_KEY=your_key
+CRAWLER_BASE_URL=http://crawler:2000
+EMBEDDING_SERVICE_URL=http://localhost:6000
+BATCH_TOTAL_WORKERS=3
+BATCH_CHUNK_SIZE=10
 ```
 
-## 📊 Database Schema
+## API 엔드포인트
 
-### Key Tables:
-- **users** - User accounts and preferences
-- **places** - Location data with MBTI scoring
-- **bookmarks** - User bookmarks
-- **recent_views** - Activity tracking
-- **refresh_tokens** - JWT token management
-- **temp_users** - Registration workflow
-- **place_mbti_score** - MBTI-based recommendations
+### 헬스체크
 
-## 📖 API Documentation
+| Method | Path | 설명 |
+|--------|------|------|
+| GET | `/health` | 서버 상태 (DB, 워커) |
+| GET | `/` | 서비스 정보 및 엔드포인트 목록 |
+| GET | `/batch/current-jobs` | 실행 중인 전체 작업 |
 
-### Swagger UI
-Interactive API documentation is available at:
-- **Development**: http://localhost:8080/swagger-ui.html
-- **OpenAPI JSON**: http://localhost:8080/v3/api-docs
+### 크롤링 배치 (`/batch`)
 
-### API Features
-- ✅ **Complete API Documentation** with Korean descriptions
-- ✅ **Interactive Testing** with Try It Out functionality
-- ✅ **JWT Authentication** with Bearer token support
-- ✅ **Request/Response Examples** for all endpoints
-- ✅ **Parameter Validation** documentation
-- ✅ **Error Response** examples with Korean messages
+| Method | Path | 설명 |
+|--------|------|------|
+| POST | `/batch/start/{workerId}` | 특정 워커 크롤링 시작 (0~2) |
+| POST | `/batch/start-all` | 전체 워커 시작 |
+| POST | `/batch/stop/{workerId}` | 특정 워커 중지 |
+| POST | `/batch/stop-all` | 전체 워커 중지 |
+| GET | `/batch/status` | 전체 워커 상태 |
+| GET | `/batch/status/{workerId}` | 특정 워커 상태 |
+| GET | `/batch/config` | 서버 설정 (워커수, 스레드, 청크) |
 
-### API Categories
-1. **인증 관리** - Authentication and user registration
-2. **사용자 관리** - Profile and preferences management  
-3. **장소 관리** - Place recommendations and search
-4. **북마크 관리** - Bookmark functionality
-5. **사용자 활동** - Recent views and user activity
-6. **시스템** - Health checks and system status
+### 업데이트 (`/batch/update`)
 
-## 🔧 Configuration
+| Method | Path | 설명 |
+|--------|------|------|
+| POST | `/batch/update/start/{workerId}` | 특정 워커 업데이트 |
+| POST | `/batch/update/start-all` | 전체 업데이트 (메뉴+이미지+리뷰) |
+| POST | `/batch/update/with-description` | 업데이트 + AI 설명 재생성 |
+| POST | `/batch/update/menus` | 메뉴만 업데이트 |
+| POST | `/batch/update/images` | 이미지만 업데이트 |
+| POST | `/batch/update/reviews` | 리뷰만 업데이트 |
+| POST | `/batch/update/menus-with-images` | 메뉴 + 메뉴 이미지 업데이트 |
+| GET | `/batch/update/status` | 업데이트 배치 상태 |
 
-### Application Properties
-- JWT secret and expiration settings
-- HikariCP connection pool configuration
-- PostgreSQL database connection
-- Email service settings
-- Logging configuration
+### 임베딩 (`/batch/embedding`)
 
-### Environment Profiles
-- `docker` - For containerized deployment
-- `local` - For local development
-- `test` - For testing with H2 database
+| Method | Path | 설명 |
+|--------|------|------|
+| POST | `/batch/embedding/start` | 임베딩 시작 (레거시, 키워드) |
+| POST | `/batch/embedding/stop` | 임베딩 중지 (레거시) |
+| GET | `/batch/embedding/status` | 임베딩 상태 (레거시) |
+| GET | `/batch/embedding/health` | 임베딩 서비스 헬스체크 |
+| POST | `/batch/embedding/keyword/start` | 키워드 임베딩 배치 시작 |
+| POST | `/batch/embedding/keyword/stop` | 키워드 임베딩 중지 |
+| GET | `/batch/embedding/keyword/status` | 키워드 임베딩 상태 |
+| POST | `/batch/embedding/menu/start` | 메뉴 임베딩 시작 |
+| POST | `/batch/embedding/menu/stop` | 메뉴 임베딩 중지 |
+| GET | `/batch/embedding/menu/status` | 메뉴 임베딩 상태 |
+| POST | `/batch/embedding/all/start` | 전체 임베딩 (키워드+메뉴) |
+| POST | `/batch/embedding/all/stop` | 전체 임베딩 중지 |
+| GET | `/batch/embedding/all/status` | 전체 임베딩 상태 |
 
-## 🎯 API Documentation Features
+### Redis 큐 (`/batch/queue`)
 
-The API implements the complete specification from the Korean documentation:
+| Method | Path | 설명 |
+|--------|------|------|
+| POST | `/batch/queue/push/{placeId}` | 단일 장소 큐 등록 |
+| POST | `/batch/queue/push-all` | 미처리 전체 장소 큐 등록 |
+| POST | `/batch/queue/push-batch` | 장소 ID 목록 큐 등록 |
+| GET | `/batch/queue/stats` | 큐 통계 및 워커 상태 |
+| GET | `/batch/queue/task/{taskId}` | 작업 진행 상태 |
+| GET | `/batch/queue/workers` | 활성 워커 목록 |
+| GET | `/batch/queue/failed` | 실패한 장소 ID 목록 |
+| POST | `/batch/queue/worker/start` | 큐 워커 시작 |
+| POST | `/batch/queue/worker/stop` | 큐 워커 중지 |
+| GET | `/batch/queue/worker/status` | 큐 워커 상태 |
+| POST | `/batch/queue/retry-failed` | 실패 작업 재시도 |
+| DELETE | `/batch/queue/clear` | 전체 큐 초기화 |
+| DELETE | `/batch/queue/clear-completed` | 완료 목록 초기화 |
+| DELETE | `/batch/queue/clear-failed` | 실패 목록 초기화 |
 
-### 🔐 Authentication Flow
-1. Email signup → OTP verification → Password setup
-2. Login with JWT tokens (access + refresh)
-3. Automatic token refresh and logout
+### AI 설명 생성 (`/batch/description`)
 
-### 👤 User Experience  
-1. MBTI-based personality preferences
-2. Age range and transportation preferences
-3. Space type preferences (workshop, exhibition, nature, etc.)
-4. Personalized place recommendations
+| Method | Path | 설명 |
+|--------|------|------|
+| POST | `/batch/description/start` | 설명 생성 배치 시작 |
+| GET | `/batch/description/count` | 설명 필요 장소 수 |
+| GET | `/batch/description/status` | 설명 배치 상태 |
 
-### 📍 Place Discovery
-1. Context-aware search (weather, time, location)
-2. MBTI-matched recommendations
-3. Rating and popularity-based sorting
-4. Comprehensive place details with images
+## 아키텍처
 
-### 💾 Data Management
-1. Bookmark system with toggle functionality
-2. Recent view history tracking
-3. User activity monitoring
-4. Preference-based filtering
+### 워커 분배
 
-## 🚀 Next Steps
+```
+Place ID % totalWorkers = workerId
+Worker 0: ID % 3 = 0
+Worker 1: ID % 3 = 1
+Worker 2: ID % 3 = 2
+```
 
-The application is production-ready and includes:
-- ✅ Complete API implementation
-- ✅ **Comprehensive Swagger documentation**
-- ✅ **Interactive API testing** via Swagger UI
-- ✅ Security best practices
-- ✅ Database optimization
-- ✅ Error handling
-- ✅ Docker deployment
-- ✅ Testing framework
+### 처리 파이프라인
 
-### 📖 API Documentation Access
-- **Swagger UI**: http://localhost:8080/swagger-ui.html
-- **OpenAPI Spec**: http://localhost:8080/v3/api-docs
-- **All endpoints** documented with Korean descriptions and examples
+```
+CrawlingReader (ID 페이지네이션)
+  → AsyncItemProcessor (5~20 스레드)
+    → CrawlingService → MoheCrawler (Naver Selenium)
+    → OpenAI 설명 생성
+    → ImageProcessor 이미지 다운로드
+  → CrawlingWriter (Fresh Entity Pattern)
+    → PostgreSQL
+```
 
-Ready for frontend integration and deployment!
+### Redis 큐 구조
+
+```
+update:priority  → 높은 우선순위 작업
+update:pending   → 일반 작업
+update:processing → 처리 중 (Set)
+update:completed  → 완료 (Set)
+update:failed     → 실패 (Set)
+workers:registry  → 워커 정보 (Hash)
+update:stats      → 전역 통계 (Hash)
+```
+
+## 작성자
+
+**Andrew Lim (임석현)** - sjsh1623@gmail.com

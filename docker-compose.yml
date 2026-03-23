@@ -97,10 +97,12 @@ services:
     init: true
     ports:
       - "2000:2000"
+      - "4001:4001"
     environment:
       FLASK_ENV: production
       PYTHONUNBUFFERED: 1
       PORT: 2000
+      BATCH_PORT: 4001
       # DB connection for discover endpoint
       DB_HOST: ${DB_HOST}
       DB_PORT: ${DB_PORT:-16239}
