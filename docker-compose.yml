@@ -113,6 +113,7 @@ services:
       KAKAO_REST_API_KEY: ${KAKAO_REST_API_KEY:-}
     networks:
       - mohe-network
+      - mohespring_mohe-network
     restart: unless-stopped
     deploy:
       resources:
